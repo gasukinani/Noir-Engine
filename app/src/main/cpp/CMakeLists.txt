@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.22.1)
 project(noir3d)
 
 add_library(noir3d SHARED
-    src/main/cpp/noir3d.cpp
+    noir3d.cpp
 )
 
 target_compile_features(noir3d PRIVATE cxx_std_17)
