@@ -11,3 +11,5 @@ Major Android editor release.
 - JDK: 17
 
 The release workflow builds and attaches the engine APK to the GitHub Release.
+
+Release automation is scoped to the release-v1.0.0 branch and publishes the v1.0.0 GitHub Release.
