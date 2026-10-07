@@ -5,13 +5,16 @@ namespace Noir;
 
 public static class Engine
 {
-    public const string Version="1.0.0";
+    public const string Version="1.1.0";
+    public const string GraphicsBackend="NoirGFX-GLES3";
     public const string ApiVersion="1.0";
     public static double DeltaTime{get;internal set;}
     public static double Time{get;internal set;}
     public static int FrameCount{get;internal set;}
     public static bool IsPlaying{get;internal set;}=true;
     public static bool IsEditor{get;internal set;}
+    public static bool IsNativeGraphicsAvailable{get;internal set;}
+    public static void SetGraphicsQuality(GraphicsQuality quality)=>Graphics.Quality=quality;
     public static void Log(string message)=>Console.WriteLine("[Noir] "+message);
 }
 
@@ -211,4 +214,32 @@ public static class Debug
     public static void Log(string message)=>Engine.Log(message);
     public static void Warning(string message)=>Engine.Log("WARNING: "+message);
     public static void Error(string message)=>Console.Error.WriteLine("[Noir ERROR] "+message);
+}
+
+
+public enum GraphicsQuality
+{
+    Mobile,
+    High,
+    Ultra,
+    Extreme
+}
+
+public static class Graphics
+{
+    public static GraphicsQuality Quality { get; internal set; } = GraphicsQuality.Mobile;
+    public static bool PbrEnabled { get; internal set; } = true;
+    public static bool ShadowsEnabled { get; internal set; } = true;
+    public static bool FogEnabled { get; internal set; } = true;
+    public static bool BloomEnabled { get; internal set; }
+    public static float Exposure { get; internal set; } = 1.1f;
+    public static float RenderScale { get; internal set; } = 1f;
+
+    public static void Configure(GraphicsQuality quality, float exposure = 1.1f, float renderScale = 1f)
+    {
+        Quality = quality;
+        Exposure = Math.Clamp(exposure, 0.2f, 4f);
+        RenderScale = Math.Clamp(renderScale, 0.5f, 1.25f);
+        Engine.Log($"Graphics: {quality} / exposure {Exposure:0.00} / scale {RenderScale:0.00}");
+    }
 }

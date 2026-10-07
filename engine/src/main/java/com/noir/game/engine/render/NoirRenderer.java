@@ -81,7 +81,11 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
     private long lastNanos;
     private float frameTimeMs;
 
-    private final float[] cubeModels=new float[7*16];
+    private final float[] cubeModels=new float[64*16];
+    private final float[] cubeRoughness=new float[64];
+    private final float[] cubeMetallic=new float[64];
+    private final float[] cubeColor=new float[64*3];
+    private int cubeCount=0;
     private final float[] groundModel=new float[16];
     private float time;
 
@@ -181,7 +185,7 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
 
     private void deleteProgramSafe(int id){if(id!=0)try{GLES30.glDeleteProgram(id);}catch(Throwable ignored){}}
 
-    public Camera camera(){return editorCamera;}
+    public Camera camera(){if(mode==Mode.EDITOR)editorCamera.updateOrbit();return editorCamera;}
     public RuntimeCamera runtimeCamera(){return runtimeCamera;}
     public Quality quality(){return quality;}
     public WorldEnvironmentSettings environment(){return environment;}
@@ -269,6 +273,7 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
     }
 
     public float frameTimeMs(){return frameTimeMs;}
+    public void setFrameTimeMs(float ms){frameTimeMs=Math.max(0.1f,ms);}
 
     public float gizmoWorldSize(){
         return Math.max(0.8f,Math.min(4.5f,editorCamera.distance*0.10f));
@@ -332,7 +337,7 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
         float[] lightVP=lightViewProj();
         GLES30.glUniformMatrix4fv(sLightVP,1,false,lightVP,0);
         drawShadowModel(groundModel);
-        for(int i=0;i<cubeModels.length/16;i++)drawShadowModel(cubeModels,i);
+        for(int i=0;i<cubeCount;i++)drawShadowModel(cubeModels,i);
 
         GLES30.glBindFramebuffer(GLES30.GL_FRAMEBUFFER,0);
         GLES30.glViewport(0,0,width,height);
@@ -382,17 +387,11 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
         GLES30.glUniform1f(uMetal,0.02f);
         GLES30.glUniform3f(uBaseColor,0.18f,0.21f,0.24f);
         drawModel(groundModel);
-        for(int i=0;i<cubeModels.length/16;i++){
-            float rough= i==1 ? 0.24f : (i==3||i==4 ? 0.38f : 0.52f);
-            float metal= i==1 ? 0.26f : 0.05f;
-            if(i==0)GLES30.glUniform3f(uBaseColor,0.58f,0.60f,0.63f);
-            else if(i==1)GLES30.glUniform3f(uBaseColor,0.22f,0.30f,0.36f);
-            else if(i==2)GLES30.glUniform3f(uBaseColor,0.48f,0.44f,0.38f);
-            else if(i==3||i==4)GLES30.glUniform3f(uBaseColor,0.32f,0.37f,0.42f);
-            else if(i==5)GLES30.glUniform3f(uBaseColor,0.12f,0.15f,0.18f);
-            else GLES30.glUniform3f(uBaseColor,0.36f,0.40f,0.44f);
-            GLES30.glUniform1f(uRough,rough);
-            GLES30.glUniform1f(uMetal,metal);
+        for(int i=0;i<cubeCount;i++){
+            int c=i*3;
+            GLES30.glUniform3f(uBaseColor,cubeColor[c],cubeColor[c+1],cubeColor[c+2]);
+            GLES30.glUniform1f(uRough,cubeRoughness[i]);
+            GLES30.glUniform1f(uMetal,cubeMetallic[i]);
             drawModel(cubeModels,i);
         }
         disableMainAttributes();
@@ -518,14 +517,43 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
     }
 
     private void buildSceneModels(){
-        setIdentity(groundModel); scale(groundModel,14,0.1f,18); translate(groundModel,0,-0.1f,0);
-        model(cubeModels,0,0,1,0,0,0,0,2.5f,1.5f,2.5f);
-        model(cubeModels,1,-5,1.5f,-3,0,0,0,2,1.5f,2);
-        model(cubeModels,2,5,1.5f,-3,0,0,0,2,1.5f,2);
-        model(cubeModels,3,-7,2.0f,5,0,0,0,1,2,1);
-        model(cubeModels,4,7,2.0f,5,0,0,0,1,2,1);
-        model(cubeModels,5,0,1.5f,-9,0,0,0,6,1.5f,0.6f);
-        model(cubeModels,6,0,2.5f,9,0,0,0,6,2.5f,0.6f);
+        setIdentity(groundModel); scale(groundModel,18,0.1f,18); translate(groundModel,0,-0.1f,0);
+        cubeCount=0;
+        // Deterministic procedural editor terrain: no imported asset is required
+        // to make the 3D viewport useful. Multiple low-cost waves create varied
+        // elevations while keeping results identical between editor launches.
+        final int grid=3;
+        final float spacing=2.15f;
+        for(int z=-grid;z<=grid;z++){
+            for(int x=-grid;x<=grid;x++){
+                float nx=(x+grid)*0.73f, nz=(z+grid)*0.91f;
+                float h=1.05f
+                        +0.55f*(float)Math.sin(nx*0.93f+nz*0.37f)
+                        +0.35f*(float)Math.cos(nx*0.31f-nz*0.77f)
+                        +0.22f*(float)Math.sin((nx+nz)*1.71f);
+                h=Math.max(0.6f,Math.min(4.2f,h+2.0f));
+                int i=cubeCount++;
+                model(cubeModels,i,x*spacing,h*0.5f,z*spacing,0,0,0,1.0f,h*0.5f,1.0f);
+                cubeRoughness[i]=0.72f; cubeMetallic[i]=0.02f;
+                int c=i*3, moss=Math.max(0,Math.min(100,(int)((h-1.2f)*33f)));
+                float m=moss/100f;
+                cubeColor[c]=0.24f+0.12f*m; cubeColor[c+1]=0.28f+0.18f*m; cubeColor[c+2]=0.23f+0.10f*m;
+            }
+        }
+        addProceduralCube(0,3.0f,0,2.8f,3.0f,2.8f,0.24f,0.33f,0.42f,0.24f,0.26f);
+        addProceduralCube(-7.5f,2.0f,-7.5f,1.6f,2.0f,1.6f,0.55f,0.42f,0.28f,0.45f,0.08f);
+        addProceduralCube(7.5f,2.4f,-7.5f,1.9f,2.4f,1.9f,0.34f,0.40f,0.48f,0.42f,0.12f);
+        addProceduralCube(-7.5f,1.8f,7.5f,1.5f,1.8f,1.5f,0.38f,0.29f,0.22f,0.62f,0.04f);
+        addProceduralCube(7.5f,2.1f,7.5f,1.8f,2.1f,1.8f,0.27f,0.32f,0.36f,0.50f,0.18f);
+    }
+
+    private void addProceduralCube(float x,float y,float z,float sx,float sy,float sz,
+                                   float r,float g,float b,float rough,float metal){
+        if(cubeCount>=64)return;
+        int i=cubeCount++;
+        model(cubeModels,i,x,y,z,0,0,0,sx,sy,sz);
+        cubeRoughness[i]=rough; cubeMetallic[i]=metal;
+        int c=i*3; cubeColor[c]=r; cubeColor[c+1]=g; cubeColor[c+2]=b;
     }
 
     private void model(float[] dst,int i,float x,float y,float z,float rx,float ry,float rz,float sx,float sy,float sz){
@@ -542,7 +570,12 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
     }
 
     private void drawShadowModel(float[] all,int i){
-        drawShadowModel(Arrays.copyOfRange(all,i*16,i*16+16));
+        GLES30.glBindBuffer(GLES30.GL_ARRAY_BUFFER,cubeVbo);
+        GLES30.glEnableVertexAttribArray(0);
+        GLES30.glVertexAttribPointer(0,3,GLES30.GL_FLOAT,false,8*4,0);
+        GLES30.glUniformMatrix4fv(sModel,1,false,all,i*16);
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,36);
+        GLES30.glDisableVertexAttribArray(0);
     }
 
     private void enableMainAttributes(){
@@ -559,7 +592,15 @@ public final class NoirRenderer implements GLSurfaceView.Renderer {
         GLES30.glUniformMatrix3fv(uNormal,1,false,n,0);
         GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,36);
     }
-    private void drawModel(float[] all,int i){drawModel(Arrays.copyOfRange(all,i*16,i*16+16));}
+    private void drawModel(float[] all,int i){
+        GLES30.glUniformMatrix4fv(uModel,1,false,all,i*16);
+        float[] n=new float[]{
+                all[i*16],all[i*16+1],all[i*16+2],
+                all[i*16+4],all[i*16+5],all[i*16+6],
+                all[i*16+8],all[i*16+9],all[i*16+10]};
+        GLES30.glUniformMatrix3fv(uNormal,1,false,n,0);
+        GLES30.glDrawArrays(GLES30.GL_TRIANGLES,0,36);
+    }
 
     private float[] viewProj(){
         float[] v;

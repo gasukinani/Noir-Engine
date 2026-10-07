@@ -26,10 +26,18 @@ public final class NoirNative {
     public static native boolean vulkanSupported();
     public static native String vulkanStatus();
     public static native String glesBackendInfo();
+    public static native boolean graphicsInitialize();
+    public static native void graphicsResize(int width,int height);
+    public static native void graphicsFrame(float yaw,float pitch,float distance,float targetX,float targetY,float targetZ,boolean editorMode);
+    public static native float graphicsFrameTimeMs();
+    public static native void graphicsShutdown();
+    public static native String themeColor(String key);
+    public static native float[] themeMetrics();
     public static native boolean vulkanInitialize();
     public static native void vulkanShutdown();
     public static native boolean vulkanDeviceReady();
     public static native String vulkanDeviceInfo();
+    public static native String vulkanFeatureInfo();
     public static native float[] editorLayout(float width,float height,float density);
     public static native boolean vulkanAttachSurface(android.view.Surface surface);
     public static native boolean vulkanDrawFrame();

@@ -191,6 +191,17 @@ extern "C" JNIEXPORT jstring JNICALL Java_com_noir_game_engine_NoirNative_vulkan
     std::string s=std::string(g.props.deviceName)+" | API "+api(g.apiVersion)+" | swapchain "+std::to_string(g.extent.width)+"x"+std::to_string(g.extent.height);
     return e->NewStringUTF(s.c_str());
 }
+extern "C" JNIEXPORT jstring JNICALL Java_com_noir_game_engine_NoirNative_vulkanFeatureInfo(JNIEnv* e,jclass){
+    if(!g.physical)return e->NewStringUTF("Vulkan feature probe: no physical device selected");
+    VkPhysicalDeviceFeatures f{}; vkGetPhysicalDeviceFeatures(g.physical,&f);
+    std::string s="samplerAnisotropy="+std::string(f.samplerAnisotropy?"yes":"no");
+    s+=" | wideLines="+std::string(f.wideLines?"yes":"no");
+    s+=" | fillModeNonSolid="+std::string(f.fillModeNonSolid?"yes":"no");
+    s+=" | sampleRateShading="+std::string(f.sampleRateShading?"yes":"no");
+    s+=" | geometryShader="+std::string(f.geometryShader?"yes":"no");
+    s+=" | tessellationShader="+std::string(f.tessellationShader?"yes":"no");
+    return e->NewStringUTF(s.c_str());
+}
 extern "C" JNIEXPORT jboolean JNICALL Java_com_noir_game_engine_NoirNative_vulkanAttachSurface(JNIEnv* env,jclass,jobject surface){
     if(!surface)return JNI_FALSE;
     reset();if(!createInstance())return JNI_FALSE;

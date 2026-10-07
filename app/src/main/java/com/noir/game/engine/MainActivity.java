@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 public final class MainActivity extends Activity {
     private NoirRenderer renderer;
     private NoirEditorView editorUi;
+    private NoirSurface surface;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -32,26 +33,21 @@ public final class MainActivity extends Activity {
             NoirScene scene=loadProjectScene(projectPath);
             EditorState editor=new EditorState(scene,projectPath);
             renderer=new NoirRenderer();
-            NoirGraphicsBackend.Type selectedBackend=NoirGraphicsBackend.load(this);
-            NoirViewport surface;
-            if(selectedBackend==NoirGraphicsBackend.Type.VULKAN && NoirGraphicsBackend.vulkanAvailable()){
-                NoirGraphicsBackend.initializeVulkanStage();
-                renderer.setGraphicsBackend(NoirRenderer.GraphicsBackend.VULKAN);
-                surface=new NoirVulkanSurface(this);
-            }else{
-                if(selectedBackend==NoirGraphicsBackend.Type.VULKAN) NoirGraphicsBackend.save(this,NoirGraphicsBackend.Type.GLES);
-                renderer.setGraphicsBackend(NoirRenderer.GraphicsBackend.GLES);
-                surface=new NoirSurface(this,renderer);
-            }
+
+            // Three.js/WebGL2 is now the editor viewport. Native GLES/Vulkan
+            // remains available for runtime/engine work, but the editor no
+            // longer depends on the incomplete native Vulkan clear-only path.
+            renderer.setGraphicsBackend(NoirRenderer.GraphicsBackend.GLES);
+            surface=new NoirSurface(this,renderer);
+            surface.setEditorTapListener((x,y)->{});
             editorUi=new NoirEditorView(this,editor,renderer,surface);
 
             FrameLayout root=new FrameLayout(this);
-            root.addView((android.view.View)surface,new FrameLayout.LayoutParams(-1,-1));
+            root.setBackgroundColor(Color.rgb(11,18,32));
+            root.addView(surface,new FrameLayout.LayoutParams(-1,-1));
             root.addView(editorUi,new FrameLayout.LayoutParams(-1,-1));
             setContentView(root);
         } catch(Throwable openError) {
-            // Last-resort Java recovery: never leave the user with a fatal Activity crash
-            // when the editor stack rejects a project or an unsupported graphics config.
             showOpenRecovery(projectPath,openError);
         }
     }
@@ -72,7 +68,7 @@ public final class MainActivity extends Activity {
                 +"Project: "+projectName+"\n"
                 +"The project could not initialize the editor.\n"
                 +"A safe fallback scene was prepared, but the current graphics surface failed.\n\n"
-                +"Open the project again after switching to GLES if needed.");
+                +"Open the project again after checking the editor logs.");
         view.setBackgroundColor(Color.rgb(18,20,24));
         setContentView(view);
     }
@@ -86,8 +82,6 @@ public final class MainActivity extends Activity {
     }
 
     private NoirScene loadProjectScene(String projectPath) {
-        // Opening a project must never take down the editor because of a malformed
-        // or partially-imported scene. Always keep a known-good fallback scene.
         String fallback = "scene Main\n"
                 + "node World {\n type = NODE3D\n}\n"
                 + "node MainCamera {\n type = CAMERA3D\n position = (0, 2, 6)\n}\n";
@@ -116,9 +110,7 @@ public final class MainActivity extends Activity {
         } catch (Throwable ignored) {
             scene = null;
         }
-        if (scene == null || scene.root == null) {
-            scene = new NoirScene("Main");
-        }
+        if (scene == null || scene.root == null) scene = new NoirScene("Main");
 
         NoirNode root = scene.root;
         try {
@@ -148,9 +140,7 @@ public final class MainActivity extends Activity {
             if (root.find("MainCamera") == null) {
                 root.add(new NoirNode("MainCamera", "MainCamera", NoirNode.Kind.CAMERA3D));
             }
-        } catch (Throwable ignored) {
-            // A broken optional node/property must not prevent the editor from opening.
-        }
+        } catch (Throwable ignored) {}
         return scene;
     }
 
@@ -162,9 +152,7 @@ public final class MainActivity extends Activity {
             long total = 0L;
             while ((n = in.read(buffer)) != -1) {
                 total += n;
-                if (total > 8L * 1024L * 1024L) {
-                    throw new IOException("Scene file is too large");
-                }
+                if (total > 8L * 1024L * 1024L) throw new IOException("Scene file is too large");
                 out.write(buffer, 0, n);
             }
             return out.toString(StandardCharsets.UTF_8.name());

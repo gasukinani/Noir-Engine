@@ -144,12 +144,12 @@ public final class NoirEditorView extends android.view.View {
         p.setColor(BORDER);
         c.drawLine(0,y,w,y,p);
         p.setStyle(Paint.Style.FILL);
-        text(c,"NOIR EDITOR",dp(14),y+dp(19),dp(8),ACCENT);
+        text(c,"NOIR GFX • EDITOR",dp(14),y+dp(19),dp(8),ACCENT);
         text(c,status,dp(96),y+dp(19),dp(8),TEXT);
         NoirNode n=state.selected;
         String sel=n==null?"No selection":n.name+" • "+n.kind.name();
         text(c,sel,dp(250),y+dp(19),dp(8),MUTED);
-        String nativeState=NoirNative.isLoaded()?"C++ NATIVE":"JAVA FALLBACK";
+        String nativeState=NoirNative.isLoaded()?NoirNative.glesBackendInfo():"JAVA FALLBACK";
         text(c,nativeState,w-dp(125),y+dp(19),dp(8),NoirNative.isLoaded()?GOOD:WARN);
         text(c,String.format(Locale.US,"FPS %.0f",1000.0f/Math.max(0.1f,renderer.frameTimeMs())),w-dp(55),y+dp(19),dp(8),TEXT);
     }

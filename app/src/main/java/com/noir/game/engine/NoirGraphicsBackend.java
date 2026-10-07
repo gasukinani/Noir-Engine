@@ -44,4 +44,8 @@ public final class NoirGraphicsBackend {
     public static String vulkanDeviceInfo(){
         try{return NoirNative.vulkanDeviceInfo();}catch(Throwable ignored){return "Vulkan device info unavailable";}
     }
+
+    public static String vulkanFeatureInfo(){
+        try{return NoirNative.vulkanFeatureInfo();}catch(Throwable ignored){return "Vulkan feature probe unavailable";}
+    }
 }

@@ -1,0 +1,8 @@
+material MetalPBR {
+    shader = standard_pbr
+    base_color = (0.22, 0.32, 0.46, 1.0)
+    roughness = 0.42
+    metallic = 0.18
+    normal_strength = 0.55
+    ao_strength = 0.82
+}
