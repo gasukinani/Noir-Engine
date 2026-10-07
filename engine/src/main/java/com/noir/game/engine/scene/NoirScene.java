@@ -14,6 +14,8 @@ public final class NoirScene {
         this.name = name;
         root = new NoirNode("root", name, NoirNode.Kind.NODE3D);
         environment.put("sky", "procedural");
+        environment.put("sky_mode", "PROCEDURAL_SKY");
+        environment.put("sky_brightness", "1.0");
         environment.put("exposure", "1.0");
         environment.put("fog_density", "0.012");
         environment.put("ambient_strength", "0.35");

@@ -1,0 +1,15 @@
+theme NoirMidnight {
+    background = #05070D
+    surface = #0C1220
+    surface2 = #121A2A
+    border = #25324A
+    accent = #6FA7FF
+    accent2 = #9B7AFF
+    text = #F2F5FF
+    muted = #74829B
+    good = #5FE3A1
+    warn = #FFD166
+    bad = #FF5F76
+    corner = 10
+    spacing = 6
+}

@@ -1,0 +1,21 @@
+{
+  "source": {
+    "name": "Kenney Nature Kit",
+    "license": "CC0-1.0",
+    "repository": "https://github.com/Hidencod/tge-assets/tree/main/packs/nature-kit",
+    "original": "https://kenney.nl/assets/nature-kit"
+  },
+  "assets": {
+    "tree_oak": "tree-oak.glb",
+    "tree_pine": "tree-pinedefaulta.glb",
+    "bush": "plant-bushdetailed.glb",
+    "grass": "grass-large.glb",
+    "rock": "cliff-large-rock.glb"
+  },
+  "quality": {
+    "MEDIUM": { "foliage_density": 0.25, "shadow_pcf": 1, "reflections": false, "bloom": false },
+    "HIGH": { "foliage_density": 0.55, "shadow_pcf": 1, "reflections": true, "bloom": true },
+    "ULTRA": { "foliage_density": 0.85, "shadow_pcf": 2, "reflections": true, "bloom": true },
+    "EXTREME": { "foliage_density": 1.0, "shadow_pcf": 2, "reflections": true, "bloom": true }
+  }
+}

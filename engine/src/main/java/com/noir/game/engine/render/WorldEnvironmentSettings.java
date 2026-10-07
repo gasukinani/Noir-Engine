@@ -7,10 +7,11 @@ package com.noir.game.engine.render;
  * API so the same scene can drive GLES, Vulkan, and future backends.
  */
 public final class WorldEnvironmentSettings {
-    public enum SkyMode { COLOR, GRADIENT, CUBEMAP, PROCEDURAL_SKY, HDRI }
+    public enum SkyMode { COLOR, GRADIENT, CUBEMAP, PROCEDURAL_SKY, PHYSICAL_SKY, HDRI, SHADER_SKY_MATERIAL }
 
     public SkyMode skyMode=SkyMode.PROCEDURAL_SKY;
     public String skyAsset="";
+    public String skyMaterial="";
     public float skyBrightness=1f;
     public float sunEnergy=2f;
     public float ambientEnergy=.7f;

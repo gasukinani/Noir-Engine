@@ -6,6 +6,7 @@ import android.view.Window;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.TextView;
+import android.view.View;
 import android.graphics.Color;
 import com.noir.game.engine.core.GameFileParser;
 import com.noir.game.engine.editor.EditorState;
@@ -18,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 public final class MainActivity extends Activity {
     private NoirRenderer renderer;
     private NoirEditorView editorUi;
+    private View surface;
 
     @Override public void onCreate(Bundle state){
         super.onCreate(state);
@@ -25,6 +27,13 @@ public final class MainActivity extends Activity {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,WindowManager.LayoutParams.FLAG_FULLSCREEN);
 
         String projectPath=getIntent().getStringExtra("project_path");
+        try {
+            NoirCSharpRuntime.ensureInstalled(this);
+        } catch(Throwable ignored) {
+            // The editor can still open for non-C# projects; the build pipeline
+            // separately guarantees that the SDK DLLs are packaged in the APK.
+        }
+
         if(projectPath!=null && !projectPath.trim().isEmpty()){
             try{ new NoirProjectWorkspace(this).ensureCSharpLayout(new File(projectPath).getCanonicalFile()); }catch(Throwable ignored){}
         }
@@ -32,26 +41,27 @@ public final class MainActivity extends Activity {
             NoirScene scene=loadProjectScene(projectPath);
             EditorState editor=new EditorState(scene,projectPath);
             renderer=new NoirRenderer();
-            NoirGraphicsBackend.Type selectedBackend=NoirGraphicsBackend.load(this);
-            NoirViewport surface;
-            if(selectedBackend==NoirGraphicsBackend.Type.VULKAN && NoirGraphicsBackend.vulkanAvailable()){
-                NoirGraphicsBackend.initializeVulkanStage();
-                renderer.setGraphicsBackend(NoirRenderer.GraphicsBackend.VULKAN);
-                surface=new NoirVulkanSurface(this);
+            renderer.applyScene(scene);
+
+            // NoirGFX C++ is the editor viewport. Java remains the editor interaction
+            // layer; Vulkan stays isolated until its full scene pipeline is ready.
+            NoirGraphicsBackend.Type preferred=NoirGraphicsBackend.load(this);
+            boolean useVulkan=preferred==NoirGraphicsBackend.Type.VULKAN && NoirGraphicsBackend.vulkanAvailable();
+            renderer.setGraphicsBackend(useVulkan?NoirRenderer.GraphicsBackend.VULKAN:NoirRenderer.GraphicsBackend.GLES);
+            if(useVulkan){
+                surface=new NoirVulkanSurface(this,renderer);
             }else{
-                if(selectedBackend==NoirGraphicsBackend.Type.VULKAN) NoirGraphicsBackend.save(this,NoirGraphicsBackend.Type.GLES);
-                renderer.setGraphicsBackend(NoirRenderer.GraphicsBackend.GLES);
                 surface=new NoirSurface(this,renderer);
+                if(preferred==NoirGraphicsBackend.Type.VULKAN)NoirGraphicsBackend.save(this,NoirGraphicsBackend.Type.GLES);
             }
-            editorUi=new NoirEditorView(this,editor,renderer,surface);
+            editorUi=new NoirEditorView(this,editor,renderer,(NoirViewport)surface);
 
             FrameLayout root=new FrameLayout(this);
-            root.addView((android.view.View)surface,new FrameLayout.LayoutParams(-1,-1));
+            root.setBackgroundColor(NoirTheme.color("background",Color.rgb(246,243,236)));
+            root.addView(surface,new FrameLayout.LayoutParams(-1,-1));
             root.addView(editorUi,new FrameLayout.LayoutParams(-1,-1));
             setContentView(root);
         } catch(Throwable openError) {
-            // Last-resort Java recovery: never leave the user with a fatal Activity crash
-            // when the editor stack rejects a project or an unsupported graphics config.
             showOpenRecovery(projectPath,openError);
         }
     }
@@ -72,8 +82,8 @@ public final class MainActivity extends Activity {
                 +"Project: "+projectName+"\n"
                 +"The project could not initialize the editor.\n"
                 +"A safe fallback scene was prepared, but the current graphics surface failed.\n\n"
-                +"Open the project again after switching to GLES if needed.");
-        view.setBackgroundColor(Color.rgb(18,20,24));
+                +"Open the project again after checking the editor logs.");
+        view.setBackgroundColor(NoirTheme.color("surface",Color.rgb(255,253,248)));
         setContentView(view);
     }
 
@@ -86,8 +96,6 @@ public final class MainActivity extends Activity {
     }
 
     private NoirScene loadProjectScene(String projectPath) {
-        // Opening a project must never take down the editor because of a malformed
-        // or partially-imported scene. Always keep a known-good fallback scene.
         String fallback = "scene Main\n"
                 + "node World {\n type = NODE3D\n}\n"
                 + "node MainCamera {\n type = CAMERA3D\n position = (0, 2, 6)\n}\n";
@@ -116,18 +124,25 @@ public final class MainActivity extends Activity {
         } catch (Throwable ignored) {
             scene = null;
         }
-        if (scene == null || scene.root == null) {
-            scene = new NoirScene("Main");
-        }
+        if (scene == null || scene.root == null) scene = new NoirScene("Main");
 
         NoirNode root = scene.root;
         try {
-            if (root.find("WorldEnvironment") == null) {
-                NoirNode env = root.add(new NoirNode(
+            NoirNode env = root.find("WorldEnvironment");
+            if (env == null) {
+                env = root.add(new NoirNode(
                         "WorldEnvironment", "WorldEnvironment", NoirNode.Kind.WORLD_ENVIRONMENT));
-                env.properties.put("sky", "procedural");
-                env.properties.put("clouds", "procedural");
-                env.properties.put("exposure", "1.0");
+            }
+            env.properties.putIfAbsent("sky", "procedural");
+            env.properties.putIfAbsent("sky_mode", "PROCEDURAL_SKY");
+            env.properties.putIfAbsent("clouds", "procedural");
+            env.properties.putIfAbsent("sky_brightness", "1.0");
+            env.properties.putIfAbsent("exposure", "1.0");
+            env.properties.putIfAbsent("fog_density", "0.008");
+            NoirNode sky = env.children.stream().filter(n -> n.kind == NoirNode.Kind.SKY3D).findFirst().orElse(null);
+            if (sky == null) {
+                sky = env.add(new NoirNode("Sky3D", "Sky3D", NoirNode.Kind.SKY3D));
+                sky.properties.put("material", "ProceduralSkyMaterial");
             }
             if (root.find("Sun") == null) {
                 NoirNode sun = root.add(new NoirNode("Sun", "Sun", NoirNode.Kind.LIGHT3D));
@@ -148,10 +163,72 @@ public final class MainActivity extends Activity {
             if (root.find("MainCamera") == null) {
                 root.add(new NoirNode("MainCamera", "MainCamera", NoirNode.Kind.CAMERA3D));
             }
-        } catch (Throwable ignored) {
-            // A broken optional node/property must not prevent the editor from opening.
-        }
+        } catch (Throwable ignored) {}
+        ensureWorldGeometry(scene, root);
         return scene;
+    }
+
+    private void ensureWorldGeometry(NoirScene scene, NoirNode root){
+        boolean hasGeometry=false;
+        for(NoirNode n:scene.flatten()){
+            switch(n.kind){
+                case MESH3D: case TERRAIN3D: case FOLIAGE3D: case WATER3D: case STATIC_BODY3D:
+                case CHARACTER3D: case PLAYER3D: case VEHICLE3D: hasGeometry=true; break;
+                default: break;
+            }
+            if(hasGeometry)break;
+        }
+        if(hasGeometry)return;
+
+        NoirNode terrain=root.add(new NoirNode("Terrain_Main","Terrain_Main",NoirNode.Kind.TERRAIN3D));
+        terrain.properties.put("mesh","builtin/terrain");
+        terrain.properties.put("material","NoirTerrainPBR");
+        terrain.sx=18f; terrain.sy=0.35f; terrain.sz=18f;
+        terrain.py=-0.35f;
+
+        NoirNode water=root.add(new NoirNode("Water_Main","Water_Main",NoirNode.Kind.WATER3D));
+        water.properties.put("material","NoirWaterPBR");
+        water.sx=10f; water.sy=0.06f; water.sz=10f;
+        water.py=-0.22f; water.pz=5f;
+
+        float[][] rocks={
+            {-8f,0.55f,-5f,1.7f,0.8f,1.4f},{-4f,0.45f,-7f,1.1f,0.7f,1.0f},
+            {7f,0.75f,-6f,1.8f,1.0f,1.3f},{10f,0.42f,1f,1.0f,0.6f,1.2f},
+            {-9f,0.62f,7f,1.5f,0.9f,1.5f},{5f,0.55f,8f,1.4f,0.8f,1.1f}
+        };
+        int id=0;
+        for(float[] q:rocks){
+            NoirNode rock=root.add(new NoirNode("Rock_"+(++id),"Rock_"+id,NoirNode.Kind.MESH3D));
+            rock.properties.put("mesh","environment/rock");
+            rock.properties.put("material","RockPBR");
+            rock.px=q[0];rock.py=q[1];rock.pz=q[2];rock.sx=q[3];rock.sy=q[4];rock.sz=q[5];
+        }
+
+        float[][] trees={
+            {-11f,2.7f,-10f,1.4f},{-5f,3.0f,-11f,1.25f},{2f,3.4f,-10f,1.5f},
+            {10f,3.0f,-10f,1.3f},{13f,2.6f,-2f,1.15f},{-12f,2.9f,2f,1.3f},
+            {-9f,3.1f,10f,1.35f},{2f,3.2f,11f,1.4f},{11f,2.9f,8f,1.2f}
+        };
+        id=0;
+        for(float[] q:trees){
+            NoirNode tree=root.add(new NoirNode("Tree_"+(++id),"Tree_"+id,NoirNode.Kind.FOLIAGE3D));
+            tree.properties.put("mesh","environment/tree_oak");
+            tree.properties.put("material","FoliagePBR");
+            tree.px=q[0];tree.py=q[1];tree.pz=q[2];tree.sx=tree.sz=q[3];tree.sy=q[3]*1.8f;
+        }
+
+        for(int i=0;i<8;i++){
+            double a=i*Math.PI/4.0;
+            float x=(float)Math.cos(a)*6.5f, z=(float)Math.sin(a)*6.5f;
+            NoirNode grass=root.add(new NoirNode("Grass_"+i,"Grass_"+i,NoirNode.Kind.FOLIAGE3D));
+            grass.properties.put("mesh","environment/grass");
+            grass.properties.put("material","GrassPBR");
+            grass.px=x;grass.py=0.15f;grass.pz=z;grass.sx=grass.sz=0.9f;grass.sy=1.3f;
+        }
+        NoirNode subject=root.add(new NoirNode("EnvironmentStatue","EnvironmentStatue",NoirNode.Kind.MESH3D));
+        subject.properties.put("mesh","builtin/statue");
+        subject.properties.put("material","StonePBR");
+        subject.py=1.35f;subject.sx=1.1f;subject.sy=1.35f;subject.sz=1.1f;
     }
 
     private String readUtf8(File file) throws IOException {
@@ -162,9 +239,7 @@ public final class MainActivity extends Activity {
             long total = 0L;
             while ((n = in.read(buffer)) != -1) {
                 total += n;
-                if (total > 8L * 1024L * 1024L) {
-                    throw new IOException("Scene file is too large");
-                }
+                if (total > 8L * 1024L * 1024L) throw new IOException("Scene file is too large");
                 out.write(buffer, 0, n);
             }
             return out.toString(StandardCharsets.UTF_8.name());

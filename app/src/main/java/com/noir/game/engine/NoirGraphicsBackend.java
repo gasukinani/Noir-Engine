@@ -12,7 +12,7 @@ public final class NoirGraphicsBackend {
     private NoirGraphicsBackend(){}
 
     public static Type load(Context context){
-        String value=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getString(KEY,"GLES");
+        String value=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getString(KEY,"VULKAN");
         try{return Type.valueOf(value);}catch(Exception ignored){return Type.GLES;}
     }
 
@@ -43,5 +43,9 @@ public final class NoirGraphicsBackend {
 
     public static String vulkanDeviceInfo(){
         try{return NoirNative.vulkanDeviceInfo();}catch(Throwable ignored){return "Vulkan device info unavailable";}
+    }
+
+    public static String vulkanFeatureInfo(){
+        try{return NoirNative.vulkanFeatureInfo();}catch(Throwable ignored){return "Vulkan feature probe unavailable";}
     }
 }

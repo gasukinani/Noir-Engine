@@ -1,17 +1,21 @@
-name: Noir Engine Android Build
+name: Noir Engine Android Release
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - noir-editor-upgrade
+      - noir-world-environment-quality
+      - noir-editor-v1.2-world-csharp-vulkan
+      - noir-v1.3-world-vulkan-csharp
 
 permissions:
   contents: read
 
 jobs:
   build:
-    name: Build Android Debug APK
+    name: Build Noir Engine Release APK + C# SDK
     runs-on: ubuntu-latest
 
     steps:
@@ -23,6 +27,60 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.401"
+
+      - name: Install .NET Android workload
+        run: dotnet workload install android --skip-manifest-update
+
+      - name: Build Noir C# SDK and game assemblies
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet --version
+          dotnet build csharp/Noir.csproj --configuration Release
+          dotnet build csharp/Noir.CSharp.Compiler/Noir.CSharp.Compiler.csproj --configuration Release
+          dotnet build csharp/Noir.Mobile.Scripting/Noir.Mobile.Scripting.csproj -f net10.0-android36.1 --configuration Release
+          dotnet build csharp/Noir.GameTemplate/Noir.GameTemplate.csproj -f net10.0-android36.1 --configuration Release
+          dotnet build csharp/Noir.Editor/Noir.Editor.csproj --configuration Release
+
+      - name: Emit and validate sample C# DLLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/csharp/samples build/csharp/sdk
+          dotnet run --project csharp/Noir.CSharp.Compiler/Noir.CSharp.Compiler.csproj --configuration Release -- compile build/csharp/samples/Noir.Game.dll csharp/Noir.GameTemplate/PlayerController.cs
+          test -s build/csharp/samples/Noir.Game.dll
+          dotnet run --project csharp/Noir.CSharp.Compiler/Noir.CSharp.Compiler.csproj --configuration Release -- build csharp/Noir.GameTemplate build/csharp/samples/Noir.GameTemplate.dll
+          test -s build/csharp/samples/Noir.GameTemplate.dll
+
+      - name: Assemble complete C# SDK + compiler dependency bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf build/csharp/sdk
+          mkdir -p build/csharp/sdk
+          cp csharp/bin/Release/net10.0/Noir.dll build/csharp/sdk/
+          cp csharp/Noir.Mobile.Scripting/bin/Release/net10.0/Noir.Mobile.Scripting.dll build/csharp/sdk/
+          cp csharp/Noir.Mobile.Scripting/bin/Release/net10.0-android36.1/Noir.Mobile.Scripting.dll build/csharp/sdk/Noir.Mobile.Scripting.Android.dll
+          cp csharp/Noir.GameTemplate/bin/Release/net10.0-android36.1/Noir.Game.dll build/csharp/sdk/
+          cp csharp/Noir.Editor/bin/Release/net10.0/Noir.Editor.dll build/csharp/sdk/
+          cp csharp/Noir.CSharp.Compiler/bin/Release/net10.0/Noir.CSharp.Compiler.dll build/csharp/sdk/
+          cp build/csharp/samples/Noir.Game.dll build/csharp/sdk/Noir.Game.Sample.dll
+          cp build/csharp/samples/Noir.GameTemplate.dll build/csharp/sdk/Noir.GameTemplate.Sample.dll
+          for f in csharp/Noir.CSharp.Compiler/bin/Release/net10.0/*.dll csharp/Noir.CSharp.Compiler/bin/Release/net10.0/*.json; do
+            [ -f "$f" ] && cp -f "$f" build/csharp/sdk/
+          done
+          ls -lh build/csharp/sdk
+          test -s build/csharp/sdk/Noir.dll
+          test -s build/csharp/sdk/Noir.Game.dll
+          test -s build/csharp/sdk/Noir.CSharp.Compiler.dll
+          test -s build/csharp/sdk/Microsoft.CodeAnalysis.dll
+          test -s build/csharp/sdk/Microsoft.CodeAnalysis.CSharp.dll
+          test -s build/csharp/sdk/Microsoft.CodeAnalysis.CSharp.Workspaces.dll
 
       - name: Verify preinstalled Android SDK
         run: |
@@ -37,6 +95,7 @@ jobs:
           echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           "$SDKMANAGER" --version
+
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
@@ -47,6 +106,14 @@ jobs:
           sdkmanager --version
           sdkmanager --list_installed | grep -E "platform-tools|platforms;android-35|build-tools;35.0.0|ndk;28.1.13356709"
 
+      - name: Install Vulkan shader compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y glslang-tools
+          glslangValidator --version
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
@@ -55,36 +122,56 @@ jobs:
       - name: Verify Gradle
         run: gradle --version
 
-      - name: Pre-build engine smoke checks
+      - name: Pre-build engine and C# packaging smoke checks
         shell: bash
         run: |
           set -euo pipefail
-          test -f app/src/main/cpp/noir_vulkan.cpp
-          test -f app/src/main/cpp/noir_gles.cpp
-          test -f app/src/main/cpp/noir_world_environment.cpp
-          test -f app/src/main/java/com/noir/game/engine/NoirScriptIdeView.java
-          test -f app/src/main/java/com/noir/game/engine/NoirViewport.java
-          test -f app/src/main/java/com/noir/game/engine/NoirVulkanSurface.java
-          test -f app/src/main/java/com/noir/game/engine/NoirProjectWorkspace.java
-          test -f app/src/main/java/com/noir/game/engine/MainActivity.java
-          grep -q 'ensureCSharpLayout' app/src/main/java/com/noir/game/engine/NoirProjectWorkspace.java
-          grep -q 'loadProjectScene' app/src/main/java/com/noir/game/engine/MainActivity.java
-          grep -q 'vulkanInitialize' app/src/main/java/com/noir/game/engine/NoirNative.java
-          grep -q 'VULKAN' app/src/main/java/com/noir/game/engine/NoirEditorView.java
-          grep -q 'INTERNET' app/src/main/AndroidManifest.xml
-          grep -q 'worldEnvironmentGlesShader' app/src/main/java/com/noir/game/engine/NoirNative.java
+          test -f app/src/main/cpp/noir_graphics.cpp
+          test -f app/src/main/cpp/noir_graphics.h
+          test -f app/src/main/cpp/shaders/noir_forward.vert
+          test -f app/src/main/cpp/shaders/noir_forward.frag
+          test -f app/src/main/cpp/noir_theme.cpp
+          test -f app/src/main/java/com/noir/game/engine/NoirTheme.java
+          test -f app/src/main/java/com/noir/game/engine/NoirSurface.java
+          test -f app/src/main/java/com/noir/game/engine/NoirCSharpRuntime.java
+          grep -q 'graphicsInitialize' app/src/main/java/com/noir/game/engine/NoirNative.java
+          grep -q 'NoirGFX C++' app/src/main/java/com/noir/game/engine/MainActivity.java
+          grep -q 'assets.srcDir(noirCSharpGeneratedAssets)' app/build.gradle
+          grep -q 'prepareNoirCSharpAssets' app/build.gradle
+          grep -q 'NoirCSharpRuntime.ensureInstalled' app/src/main/java/com/noir/game/engine/MainActivity.java
           grep -q 'vulkanAttachSurface' app/src/main/java/com/noir/game/engine/NoirNative.java
-          grep -q 'csharp/Noir.Game' app/src/main/java/com/noir/game/engine/NoirProjectWorkspace.java
-          grep -q 'shader_type' app/src/main/java/com/noir/game/engine/NoirScriptIdeView.java
-          ! grep -n '\\n[[:space:]]*VkImage' app/src/main/cpp/noir_vulkan.cpp
-          echo "Project-open recovery, C# layout, script IDE, network permissions, GLES/Vulkan, and native environment sources verified."
+          grep -q 'vulkanSetScene' app/src/main/java/com/noir/game/engine/NoirNative.java
+          grep -q 'prepareNoirVulkanShaders' app/build.gradle
+          test -s build/csharp/sdk/Noir.dll
+          test -s build/csharp/sdk/Noir.Mobile.Scripting.Android.dll
+          test -s build/csharp/sdk/Noir.Game.dll
 
-      - name: Build Debug APK
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Build Release APK
+        run: gradle --no-daemon --stacktrace :app:assembleRelease
 
-      - name: Upload Debug APK
+      - name: Verify APK contains complete Noir C# SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -name '*.apk' -type f | head -n 1)"
+          test -s "$APK"
+          unzip -l "$APK" | grep -q 'assets/vulkan/noir_forward.vert.spv'
+          unzip -l "$APK" | grep -q 'assets/vulkan/noir_forward.frag.spv'
+          for dll in             Noir.dll             Noir.Mobile.Scripting.dll             Noir.Mobile.Scripting.Android.dll             Noir.Game.dll             Noir.Editor.dll             Noir.CSharp.Compiler.dll             Microsoft.CodeAnalysis.dll             Microsoft.CodeAnalysis.CSharp.dll             Microsoft.CodeAnalysis.CSharp.Workspaces.dll; do
+            unzip -l "$APK" | grep -q "assets/csharp/sdk/$dll"
+          done
+          echo "Complete C# SDK and Roslyn dependencies are embedded in $APK"
+
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: noir-engine-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: noir-engine-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Upload bundled C# SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: noir-csharp-sdk
+          path: build/csharp/sdk/*
           if-no-files-found: error

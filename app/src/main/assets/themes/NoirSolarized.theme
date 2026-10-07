@@ -1,0 +1,15 @@
+theme NoirSolarized {
+    background = #071015
+    surface = #0D1B22
+    surface2 = #13262E
+    border = #27434B
+    accent = #55C7D9
+    accent2 = #A98BFF
+    text = #E9F7F4
+    muted = #78979C
+    good = #62D6A0
+    warn = #E9C46A
+    bad = #F26B7A
+    corner = 9
+    spacing = 6
+}

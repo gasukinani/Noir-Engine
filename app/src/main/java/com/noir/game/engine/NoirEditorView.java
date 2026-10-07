@@ -9,6 +9,7 @@ import android.widget.Toast;
 import com.noir.game.engine.animation.AnimationSystem;
 import com.noir.game.engine.editor.*;
 import com.noir.game.engine.render.NoirRenderer;
+import com.noir.game.engine.render.WorldEnvironmentSettings;
 import com.noir.game.engine.scene.NoirNode;
 import com.noir.game.engine.scripting.NoirCSharpProjectService;
 import com.noir.game.engine.scripting.NoirGameCompiler;
@@ -34,9 +35,17 @@ import java.util.*;
  * - Save writes the real .game scene document
  */
 public final class NoirEditorView extends android.view.View {
-    private static final int BG=0xff090d15, PANEL=0xf3161d2a, PANEL2=0xff111827;
-    private static final int BORDER=0xff2b3a55, TEXT=0xffe4eaf4, MUTED=0xff8391a9, ACCENT=0xff6f9dfd;
-    private static final int ACTIVE=0xff3f64a2, GOOD=0xff79e0a0, WARN=0xffffc766, BAD=0xffff7884;
+    private static final int BG=NoirTheme.color("background",0xff080d16);
+    private static final int PANEL=NoirTheme.color("surface",0xff111a28);
+    private static final int PANEL2=NoirTheme.color("surface2",0xff172235);
+    private static final int BORDER=NoirTheme.color("border",0xff293a55);
+    private static final int TEXT=NoirTheme.color("text",0xffedf3ff);
+    private static final int MUTED=NoirTheme.color("muted",0xff8292ad);
+    private static final int ACCENT=NoirTheme.color("accent",0xff5c8dff);
+    private static final int ACTIVE=NoirTheme.color("accent",0xff5c79a6);
+    private static final int GOOD=NoirTheme.color("good",0xff63e6a3);
+    private static final int WARN=NoirTheme.color("warn",0xffffc85a);
+    private static final int BAD=NoirTheme.color("bad",0xffff647d);
 
     private final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final EditorState state;
@@ -77,6 +86,22 @@ public final class NoirEditorView extends android.view.View {
     }
 
     private float dp(float v){return v*density;}
+    private int SURFACE_OR_PAPER(Canvas c){return PANEL;}
+    private void menuButton(Canvas c,float x,float y,float w,float h){
+        round(c,PANEL2,x,y,x+w,y+h,dp(6));stroke(c,BORDER,dp(1),x,y,x+w,y+h,dp(6));
+        p.setColor(TEXT);p.setStrokeWidth(dp(2));p.setStyle(Paint.Style.STROKE);
+        float cx=x+w/2f,cy=y+h/2f;
+        for(int i=-1;i<=1;i++)c.drawLine(cx-dp(7),cy+i*dp(5),cx+dp(7),cy+i*dp(5),p);
+        p.setStyle(Paint.Style.FILL);
+    }
+    private void chevronButton(Canvas c,float x,float y,boolean right){
+        p.setColor(MUTED);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1.8f));
+        Path q=new Path();
+        if(right){q.moveTo(x+dp(2),y+dp(6));q.lineTo(x+dp(8),y+dp(12));q.lineTo(x+dp(2),y+dp(18));}
+        else{q.moveTo(x+dp(8),y+dp(6));q.lineTo(x+dp(2),y+dp(12));q.lineTo(x+dp(8),y+dp(18));}
+        c.drawPath(q,p);p.setStyle(Paint.Style.FILL);
+    }
+
     private void fill(Canvas c,int color,float l,float t,float r,float b){p.setStyle(Paint.Style.FILL);p.setColor(color);c.drawRect(l,t,r,b,p);}
     private void round(Canvas c,int color,float l,float t,float r,float b,float rad){p.setStyle(Paint.Style.FILL);p.setColor(color);c.drawRoundRect(l,t,r,b,rad,rad,p);}
     private void stroke(Canvas c,int color,float width,float l,float t,float r,float b,float rad){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(width);p.setColor(color);c.drawRoundRect(l,t,r,b,rad,rad,p);p.setStyle(Paint.Style.FILL);}
@@ -112,7 +137,7 @@ public final class NoirEditorView extends android.view.View {
             }
         }
 
-        fill(c,0x00000000,0,0,w,h);
+        fill(c,BG,0,0,w,h);
         drawToolbar(c,w);
         drawTabs(c,w);
 
@@ -138,18 +163,18 @@ public final class NoirEditorView extends android.view.View {
 
     private void drawStatusBar(Canvas c,float w,float h){
         float y=h-bottomBar;
-        fill(c,0xff0b111b,0,y,w,h);
+        fill(c,PANEL2,0,y,w,h);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(dp(1));
         p.setColor(BORDER);
         c.drawLine(0,y,w,y,p);
         p.setStyle(Paint.Style.FILL);
-        text(c,"NOIR EDITOR",dp(14),y+dp(19),dp(8),ACCENT);
+        text(c,"NOIR GFX • EDITOR",dp(14),y+dp(19),dp(8),ACCENT);
         text(c,status,dp(96),y+dp(19),dp(8),TEXT);
         NoirNode n=state.selected;
         String sel=n==null?"No selection":n.name+" • "+n.kind.name();
         text(c,sel,dp(250),y+dp(19),dp(8),MUTED);
-        String nativeState=NoirNative.isLoaded()?"C++ NATIVE":"JAVA FALLBACK";
+        String nativeState=NoirNative.isLoaded()?NoirNative.glesBackendInfo():"JAVA FALLBACK";
         text(c,nativeState,w-dp(125),y+dp(19),dp(8),NoirNative.isLoaded()?GOOD:WARN);
         text(c,String.format(Locale.US,"FPS %.0f",1000.0f/Math.max(0.1f,renderer.frameTimeMs())),w-dp(55),y+dp(19),dp(8),TEXT);
     }
@@ -157,18 +182,18 @@ public final class NoirEditorView extends android.view.View {
     private void drawToolbar(Canvas c,float w){
         fill(c,BG,0,0,w,topBar);
         if(compactUi){
-            bold(c,"NOIR",dp(12),dp(33),dp(20),Color.WHITE);
+            bold(c,"NOIR",dp(12),dp(33),dp(20),TEXT);
             text(c,"3D",dp(57),dp(31),dp(8),ACCENT);
             float x=dp(84),bw=dp(50),gap=dp(4);
             toolButton(c,x,dp(7),bw,dp(38),"SEL",state.tool==EditorState.Tool.SELECT); x+=bw+gap;
             toolButton(c,x,dp(7),bw,dp(38),"MOVE",state.tool==EditorState.Tool.MOVE); x+=bw+gap;
             toolButton(c,x,dp(7),bw,dp(38),"ROT",state.tool==EditorState.Tool.ROTATE); x+=bw+gap;
             toolButton(c,x,dp(7),bw,dp(38),"SCALE",state.tool==EditorState.Tool.SCALE);
-            toolButton(c,w-dp(54),dp(7),dp(46),dp(38),"•••",false);
+            menuButton(c,w-dp(54),dp(7),dp(46),dp(38));
             return;
         }
-        bold(c,"NOIR",dp(18),dp(36),dp(24),Color.WHITE);
-        text(c,"3D ENGINE",dp(88),dp(27),dp(11),0xffa7b8d8);
+        bold(c,"NOIR",dp(18),dp(36),dp(24),TEXT);
+        text(c,"3D ENGINE",dp(88),dp(27),dp(11),MUTED);
         text(c,"MOBILE EDITOR",dp(88),dp(43),dp(9),MUTED);
         toolButton(c,dp(220),dp(9),dp(54),dp(40),"SEL",state.tool==EditorState.Tool.SELECT);
         toolButton(c,dp(280),dp(9),dp(64),dp(40),"MOVE",state.tool==EditorState.Tool.MOVE);
@@ -181,7 +206,7 @@ public final class NoirEditorView extends android.view.View {
     }
 
     private void drawTabs(Canvas c,float w){
-        fill(c,0xff0d131e,0,topBar,w,topBar+tabBar);
+        fill(c,SURFACE_OR_PAPER(c),0,topBar,w,topBar+tabBar);
         float y=topBar+dp(compactUi?3:6);
         float tw=compactUi?dp(70):Math.max(dp(66),Math.min(dp(94),(w-dp(14)-dp(4)*(tabs.length-1))/tabs.length));
         float step=tw+dp(4);
@@ -189,7 +214,7 @@ public final class NoirEditorView extends android.view.View {
         float x=dp(7)-tabScroll;
         for(int i=0;i<tabs.length;i++){toolButton(c,x,y,tw,dp(compactUi?34:36),tabs[i],i==tab);x+=step;}
         c.restore();
-        if(compactUi){text(c,"‹",dp(2),topBar+dp(27),dp(16),MUTED);text(c,"›",w-dp(12),topBar+dp(27),dp(16),MUTED);}
+        if(compactUi){chevronButton(c,dp(2),topBar+dp(13),false);chevronButton(c,w-dp(14),topBar+dp(13),true);}
     }
 
     private void drawViewportChrome(Canvas c,float w,float h){
@@ -199,15 +224,15 @@ public final class NoirEditorView extends android.view.View {
         if(vr-vl<dp(200))return;
 
         // Subtle editor grid and viewport frame. The GPU scene remains underneath this overlay.
-        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);p.setColor(0x183c4d69);
+        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1);p.setColor(0x244B5563);
         if(state.grid){
             for(float x=vl+dp(40);x<vr;x+=dp(40))c.drawLine(x,ct,x,cb,p);
             for(float y=ct+dp(40);y<cb;y+=dp(40))c.drawLine(vl,y,vr,y,p);
         }
         float ox=(vl+vr)*0.5f, oy=(ct+cb)*0.5f;
-        p.setStrokeWidth(dp(1.5f));p.setColor(0x70ff6677);c.drawLine(ox,oy,ox+dp(58),oy,p);
-        p.setColor(0x7075e08a);c.drawLine(ox,oy,ox,oy-dp(44),p);
-        p.setColor(0x704d9fff);c.drawLine(ox,oy,ox-dp(42),oy+dp(32),p);
+        p.setStrokeWidth(dp(1.5f));p.setColor(0x706C7888);c.drawLine(ox,oy,ox+dp(58),oy,p);
+        p.setColor(0x706D8297);c.drawLine(ox,oy,ox,oy-dp(44),p);
+        p.setColor(0x705C79A6);c.drawLine(ox,oy,ox-dp(42),oy+dp(32),p);
         p.setStrokeWidth(1);p.setColor(0x503c4d69);c.drawRect(vl,ct,vr,cb,p);
         p.setStyle(Paint.Style.FILL);
 
@@ -272,7 +297,7 @@ public final class NoirEditorView extends android.view.View {
 
     private void drawPanel(Canvas c,float l,float t,float r,float b,String title){
         round(c,PANEL,l,t,r,b,dp(8));stroke(c,BORDER,dp(1),l,t,r,b,dp(8));
-        bold(c,title,l+dp(16),t+dp(27),dp(11),0xffbdc9dc);
+        bold(c,title,l+dp(16),t+dp(27),dp(11),MUTED);
         text(c,status,l+dp(16),t+dp(44),dp(8),MUTED);
     }
 
@@ -284,9 +309,9 @@ public final class NoirEditorView extends android.view.View {
         for(int i=0;i<nodes.size()&&y<b-dp(100);i++){
             NoirNode n=nodes.get(i);
             if(n==state.selected)round(c,ACTIVE,l+dp(8),y-dp(20),r-dp(8),y+dp(9),dp(5));
-            text(c,icon(n.kind),l+dp(16+n.depth()*15),y,dp(11),n==state.selected?Color.WHITE:0xff7fa4e8);
+            drawNodeIcon(c,n.kind,l+dp(22+n.depth()*15),y-dp(5),dp(12),n==state.selected?ACTIVE:ACCENT);
             text(c,n.name,l+dp(37+n.depth()*15),y,dp(11),n==state.selected?Color.WHITE:TEXT);
-            text(c,n.kind.name(),r-dp(84),y,dp(7),0xff64748a);
+            text(c,n.kind.name(),r-dp(84),y,dp(7),MUTED);
             y+=dp(29);
         }
         smallButton(c,l+dp(14),b-dp(62),dp(74),"ADD NODE",true);
@@ -356,8 +381,8 @@ public final class NoirEditorView extends android.view.View {
             float y=t+dp(152);
             for(File f:fs){
                 if(y>b-dp(44))break;
-                round(c,f.isDirectory()?0xff17253a:0xff121a27,l+dp(12),y-dp(16),r-dp(12),y+dp(12),dp(5));
-                text(c,f.isDirectory()?"▸":"•",l+dp(20),y+dp(1),dp(11),f.isDirectory()?ACCENT:MUTED);
+                round(c,f.isDirectory()?PANEL2:PANEL,l+dp(12),y-dp(16),r-dp(12),y+dp(12),dp(5));
+                drawFileIcon(c,l+dp(26),y-dp(5),dp(11),f.isDirectory(),f.isDirectory()?ACCENT:MUTED);
                 text(c,f.getName(),l+dp(40),y+dp(1),dp(10),TEXT);
                 text(c,f.isDirectory()?"FOLDER":"FILE",r-dp(54),y+dp(1),dp(7),MUTED);
                 y+=dp(34);
@@ -374,10 +399,10 @@ public final class NoirEditorView extends android.view.View {
         smallButton(c,l+dp(260),t+dp(82),dp(82),timeline.autoKey?"AUTO ON":"AUTO OFF",timeline.autoKey);
         text(c,timeline.timecode(timeline.playhead),r-dp(78),t+dp(101),dp(9),WARN);
         float top=t+dp(132),bot=b-dp(28);
-        round(c,0xff080d15,l+dp(12),top,r-dp(12),bot,dp(5));
+        round(c,PANEL2,l+dp(12),top,r-dp(12),bot,dp(5));
         for(int i=0;i<=8;i++){
             float x=l+dp(14)+(r-l-dp(28))*i/8f;
-            p.setColor(0xff253149);p.setStrokeWidth(1);c.drawLine(x,top,x,bot,p);
+            p.setColor(BORDER);p.setStrokeWidth(1);c.drawLine(x,top,x,bot,p);
             text(c,String.format(Locale.US,"%.1fs",timeline.clip.duration*i/8f),x+dp(3),top+dp(17),dp(7),MUTED);
         }
         float norm=timeline.clip.duration<=0?0:timeline.playhead/timeline.clip.duration;
@@ -398,12 +423,12 @@ public final class NoirEditorView extends android.view.View {
 
     private void drawScript(Canvas c,float l,float t,float r,float b){
         text(c,state.scriptPath,l+dp(16),t+dp(68),dp(9),ACCENT);
-        round(c,0xff070b12,l+dp(12),t+dp(80),r-dp(12),b-dp(66),dp(5));
+        round(c,PANEL,l+dp(12),t+dp(80),r-dp(12),b-dp(66),dp(5));
         String[] lines=script.text.split("\\n",-1);
         float y=t+dp(102);
         for(int i=0;i<lines.length&&y<b-dp(86);i++){
-            text(c,String.format(Locale.US,"%03d",i+1),l+dp(18),y,dp(8),0xff4e5d75);
-            text(c,lines[i],l+dp(52),y,dp(9),lines[i].contains("camera")?0xff83a9ff:TEXT);
+            text(c,String.format(Locale.US,"%03d",i+1),l+dp(18),y,dp(8),MUTED);
+            text(c,lines[i],l+dp(52),y,dp(9),lines[i].contains("camera")?ACCENT:TEXT);
             y+=dp(17);
         }
         smallButton(c,l+dp(16),b-dp(52),dp(68),"FORMAT",false);
@@ -423,9 +448,9 @@ public final class NoirEditorView extends android.view.View {
         smallButton(c,l+dp(16),t+dp(220),dp(116),"CREATE C# PROJECT",true);
         smallButton(c,l+dp(142),t+dp(220),dp(98),"OPEN C# FOLDER",false);
         smallButton(c,l+dp(246),t+dp(220),dp(84),"CHECK SDK",false);
-        round(c,0xff080d15,l+dp(12),t+dp(270),r-dp(12),b-dp(66),dp(5));
+        round(c,PANEL2,l+dp(12),t+dp(270),r-dp(12),b-dp(66),dp(5));
         text(c,"PlayerController.cs",l+dp(22),t+dp(296),dp(9),TEXT);
-        text(c,"using Noir;",l+dp(22),t+dp(318),dp(9),0xff83a9ff);
+        text(c,"using Noir;",l+dp(22),t+dp(318),dp(9),ACCENT);
         text(c,"public sealed class PlayerController : Character3D",l+dp(22),t+dp(338),dp(9),TEXT);
         text(c,"Input.Vector(\"ui_left\",\"ui_right\",\"ui_up\",\"ui_down\")",l+dp(22),t+dp(358),dp(8),TEXT);
         text(c,"PhysicsUpdate(delta) • MoveAndSlide()",l+dp(22),t+dp(378),dp(8),TEXT);
@@ -437,7 +462,7 @@ public final class NoirEditorView extends android.view.View {
         String[] nodes={"ALBEDO","NORMAL","ROUGHNESS","METALLIC","AO","EMISSION","IBL","OUTPUT"};
         for(int i=0;i<nodes.length;i++){
             float x=l+dp(16)+(i%2)*dp(150),y=t+dp(92)+(i/2)*dp(58);
-            round(c,0xff1c2940,x,y,x+dp(132),y+dp(40),dp(6));
+            round(c,PANEL2,x,y,x+dp(132),y+dp(40),dp(6));
             text(c,nodes[i],x+dp(10),y+dp(25),dp(9),TEXT);
         }
         smallButton(c,l+dp(16),b-dp(52),dp(104),"NEW MATERIAL",true);
@@ -458,21 +483,32 @@ public final class NoirEditorView extends android.view.View {
 
     private void drawWorld(Canvas c,float l,float t,float r,float b){
         text(c,"WORLD / ENVIRONMENT",l+dp(16),t+dp(68),dp(11),TEXT);
-        String[] names={"SKY","CLOUDS","SUN SHADOWS","REFLECTIONS","FOG","PBR"};
+        text(c,"SKY MODE",l+dp(18),t+dp(96),dp(9),MUTED);
+        WorldEnvironmentSettings.SkyMode mode=renderer.environment().skyMode;
+        smallButton(c,l+dp(16),t+dp(106),dp(82),"PHYSICAL",mode==WorldEnvironmentSettings.SkyMode.PHYSICAL_SKY);
+        smallButton(c,l+dp(104),t+dp(106),dp(96),"PROCEDURAL",mode==WorldEnvironmentSettings.SkyMode.PROCEDURAL_SKY);
+        smallButton(c,l+dp(202),t+dp(106),dp(112),"SHADER MAT",mode==WorldEnvironmentSettings.SkyMode.SHADER_SKY_MATERIAL);
+
+        String[] names={"CLOUDS","SUN SHADOWS","REFLECTIONS","FOG","PBR"};
         for(int i=0;i<names.length;i++){
             boolean on=worldFlag(names[i]);
-            float y=t+dp(98)+i*dp(40);
+            float y=t+dp(160)+i*dp(40);
             text(c,names[i],l+dp(18),y+dp(18),dp(9),TEXT);
             smallButton(c,r-dp(92),y,dp(76),on?"ON":"OFF",on);
         }
-        text(c,"GRAPHICS BACKEND",l+dp(18),t+dp(326),dp(9),MUTED);
-        smallButton(c,l+dp(18),t+dp(338),dp(76),"GLES",renderer.graphicsBackend()==NoirRenderer.GraphicsBackend.GLES);
-        smallButton(c,l+dp(102),t+dp(338),dp(88),"VULKAN",renderer.graphicsBackend()==NoirRenderer.GraphicsBackend.VULKAN);
-        text(c,renderer.graphicsBackendStatus(),l+dp(18),t+dp(390),dp(8),MUTED);
+
+        text(c,"GRAPHICS BACKEND",l+dp(18),t+dp(374),dp(9),MUTED);
+        smallButton(c,l+dp(18),t+dp(386),dp(76),"GLES",renderer.graphicsBackend()==NoirRenderer.GraphicsBackend.GLES);
+        smallButton(c,l+dp(102),t+dp(386),dp(88),"VULKAN",renderer.graphicsBackend()==NoirRenderer.GraphicsBackend.VULKAN);
+        text(c,renderer.graphicsBackendStatus(),l+dp(18),t+dp(438),dp(8),MUTED);
+        text(c,renderer.nativeSceneApplied()?"SCENE SYNCED":"SCENE SYNC PENDING",l+dp(18),t+dp(458),dp(8),renderer.nativeSceneApplied()?GOOD:WARN);
+
         text(c,"QUALITY",l+dp(18),b-dp(112),dp(9),MUTED);
-        smallButton(c,l+dp(74),b-dp(126),dp(62),"HIGH",false);
-        smallButton(c,l+dp(140),b-dp(126),dp(62),"ULTRA",true);
-        smallButton(c,l+dp(206),b-dp(126),dp(76),"EXTREME",false);
+        int qt=renderer.nativeQualityTier();
+        smallButton(c,l+dp(18),b-dp(126),dp(62),"MEDIUM",qt==1);
+        smallButton(c,l+dp(84),b-dp(126),dp(62),"HIGH",qt==2);
+        smallButton(c,l+dp(150),b-dp(126),dp(62),"ULTRA",qt==3);
+        smallButton(c,l+dp(216),b-dp(126),dp(80),"EXTREME",qt==4);
         text(c,"Exposure",l+dp(18),b-dp(60),dp(9),MUTED);
         smallButton(c,l+dp(86),b-dp(73),dp(42),"-",false);
         text(c,String.format(Locale.US,"%.2f",renderer.quality().exposure),l+dp(138),b-dp(52),dp(11),TEXT);
@@ -617,6 +653,7 @@ public final class NoirEditorView extends android.view.View {
                 if(gizmo.dragging()){
                     if(gizmo.update(renderer,state.selected,x,y)){
                         if(state.snapping&&state.tool==EditorState.Tool.MOVE)snapNode(state.selected,state.snapStep);
+                        renderer.applyScene(state.scene);
                         state.log("Gizmo "+gizmo.status()+" -> "+state.selected.transformText());
                         status="Editing "+gizmo.status();
                     }
@@ -802,17 +839,41 @@ public final class NoirEditorView extends android.view.View {
     }
 
     private void handleWorldTap(float x,float y,float t,float b,float w){
-        if(y>t+dp(326)&&y<t+dp(382)){
-            if(x>=dp(12)&&x<dp(98)){
+        if(y>t+dp(102)&&y<t+dp(154)){
+            if(x>=dp(16)&&x<dp(98)) setSkyMode(WorldEnvironmentSettings.SkyMode.PHYSICAL_SKY);
+            else if(x>=dp(104)&&x<dp(202)) setSkyMode(WorldEnvironmentSettings.SkyMode.PROCEDURAL_SKY);
+            else if(x>=dp(202)&&x<dp(318)) setSkyMode(WorldEnvironmentSettings.SkyMode.SHADER_SKY_MATERIAL);
+            return;
+        }
+        if(y>t+dp(156)&&y<t+dp(366)&&x>w-dp(100)){
+            int idx=(int)((y-(t+dp(160)))/dp(40));
+            if(idx>=0&&idx<5){
+                String key=new String[]{"clouds","shadows","reflections","fog","pbr"}[idx];
+                String next=state.scene.environment.getOrDefault(key,"on").equals("on")?"off":"on";
+                state.scene.environment.put(key,next);
+                NoirNode env=state.scene.root.find("WorldEnvironment");
+                if(env!=null)env.properties.put(key,next);
+                boolean enabled="on".equals(next);
+                if("shadows".equals(key))renderer.quality().shadows=enabled;
+                else if("reflections".equals(key))renderer.quality().reflections=enabled;
+                else if("fog".equals(key)){
+                    renderer.quality().fog=enabled;
+                    state.scene.environment.put("fog_density",enabled?"0.012":"0.0");
+                }else if("clouds".equals(key))renderer.quality().clouds=enabled;
+                renderer.applyScene(state.scene);
+                status="World "+key+" "+next;
+            }
+            return;
+        }
+        if(y>t+dp(374)&&y<t+dp(432)){
+            if(x>=dp(18)&&x<dp(96)){
                 NoirGraphicsBackend.save(getContext(),NoirGraphicsBackend.Type.GLES);
                 status="GLES selected • restart required";
                 new AlertDialog.Builder(getContext()).setTitle("Switch graphics backend")
                     .setMessage("GLES will become active after restarting the editor.")
                     .setNegativeButton("CANCEL",null)
-                    .setPositiveButton("RESTART",(d,which)->{
-                        try { ((android.app.Activity)getContext()).recreate(); } catch (Throwable ignored) {}
-                    }).show();
-            }else if(x>=dp(98)&&x<dp(202)){
+                    .setPositiveButton("RESTART",(d,which)->{ try { ((android.app.Activity)getContext()).recreate(); } catch (Throwable ignored) {} }).show();
+            }else if(x>=dp(102)&&x<dp(202)){
                 if(NoirGraphicsBackend.vulkanAvailable()){
                     boolean deviceReady=NoirGraphicsBackend.initializeVulkanStage();
                     if(deviceReady){
@@ -821,9 +882,7 @@ public final class NoirEditorView extends android.view.View {
                         new AlertDialog.Builder(getContext()).setTitle("Switch to Vulkan")
                             .setMessage("Vulkan will become the active renderer after restarting the editor.\n\n"+NoirGraphicsBackend.vulkanDeviceInfo())
                             .setNegativeButton("CANCEL",null)
-                            .setPositiveButton("RESTART",(d,which)->{
-                                try { ((android.app.Activity)getContext()).recreate(); } catch (Throwable ignored) {}
-                            }).show();
+                            .setPositiveButton("RESTART",(d,which)->{ try { ((android.app.Activity)getContext()).recreate(); } catch (Throwable ignored) {} }).show();
                     }else{
                         renderer.setGraphicsBackend(NoirRenderer.GraphicsBackend.GLES);
                         status="Vulkan init failed safely — GLES remains active";
@@ -839,29 +898,47 @@ public final class NoirEditorView extends android.view.View {
             return;
         }
         if(y>b-dp(150)&&y<b-dp(100)){
-            if(x>dp(68)&&x<dp(140)){renderer.setQualityPreset(NoirRenderer.QualityPreset.HIGH);status="Quality HIGH";}
-            else if(x>=dp(140)&&x<dp(206)){renderer.setQualityPreset(NoirRenderer.QualityPreset.ULTRA);status="Quality ULTRA";}
-            else if(x>=dp(206)&&x<dp(290)){renderer.setQualityPreset(NoirRenderer.QualityPreset.EXTREME);status="Quality EXTREME";}
+            if(x>=dp(18)&&x<dp(82)){renderer.setQualityPreset(NoirRenderer.QualityPreset.MEDIUM);status="Quality MEDIUM";}
+            else if(x>=dp(84)&&x<dp(148)){renderer.setQualityPreset(NoirRenderer.QualityPreset.HIGH);status="Quality HIGH";}
+            else if(x>=dp(150)&&x<dp(214)){renderer.setQualityPreset(NoirRenderer.QualityPreset.ULTRA);status="Quality ULTRA";}
+            else if(x>=dp(216)&&x<dp(300)){renderer.setQualityPreset(NoirRenderer.QualityPreset.EXTREME);status="Quality EXTREME";}
+            state.log(status);
             return;
         }
-        if(y>t+dp(86)&&y<t+dp(350)&&x>w-dp(100)){
-            int idx=(int)((y-(t+dp(98)))/dp(40));
-            if(idx>=0&&idx<6){
-                String key=new String[]{"sky","clouds","shadows","reflections","fog","pbr"}[idx];
-                String next=state.scene.environment.getOrDefault(key,"on").equals("on")?"off":"on";
-                state.scene.environment.put(key,next);
-                boolean enabled="on".equals(next);
-                if("shadows".equals(key))renderer.quality().shadows=enabled;
-                else if("reflections".equals(key))renderer.quality().reflections=enabled;
-                else if("fog".equals(key))renderer.quality().fog=enabled;
-                else if("clouds".equals(key))renderer.quality().clouds=enabled;
-                status="World "+key+" "+next;
-            }
-        }else if(y>b-dp(88)&&x>dp(80)&&x<dp(145)){
-            renderer.quality().exposure=Math.max(0.2f,renderer.quality().exposure-0.1f);
+        if(y>b-dp(88)&&x>dp(80)&&x<dp(145)){
+            float value=Math.max(0.2f,renderer.quality().exposure-0.1f);
+            renderer.quality().exposure=value;
+            renderer.environment().exposure=value;
+            state.scene.environment.put("exposure",String.format(Locale.US,"%.2f",value));
+            renderer.applyScene(state.scene);
         }else if(y>b-dp(88)&&x>dp(165)&&x<dp(225)){
-            renderer.quality().exposure=Math.min(3.0f,renderer.quality().exposure+0.1f);
+            float value=Math.min(3.0f,renderer.quality().exposure+0.1f);
+            renderer.quality().exposure=value;
+            renderer.environment().exposure=value;
+            state.scene.environment.put("exposure",String.format(Locale.US,"%.2f",value));
+            renderer.applyScene(state.scene);
         }
+    }
+
+    private void setSkyMode(WorldEnvironmentSettings.SkyMode mode){
+        if(mode==null)return;
+        state.scene.environment.put("sky_mode",mode.name());
+        NoirNode env=state.scene.root.find("WorldEnvironment");
+        if(env!=null){
+            env.properties.put("sky_mode",mode.name());
+            String material = mode==WorldEnvironmentSettings.SkyMode.PHYSICAL_SKY ? "PhysicalSkyMaterial"
+                    : mode==WorldEnvironmentSettings.SkyMode.PROCEDURAL_SKY ? "ProceduralSkyMaterial"
+                    : "ShaderSkyMaterial";
+            env.properties.put("sky_material",material);
+            NoirNode sky = env.children.stream().filter(n -> n.kind == NoirNode.Kind.SKY3D).findFirst().orElse(null);
+            if(sky==null)sky=env.add(new NoirNode("Sky3D","Sky3D",NoirNode.Kind.SKY3D));
+            sky.properties.put("material",material);
+            sky.properties.put("shader",mode==WorldEnvironmentSettings.SkyMode.SHADER_SKY_MATERIAL?"World.shader":"");
+        }
+        renderer.applyScene(state.scene);
+        status="Sky mode "+mode.name();
+        state.log("WorldEnvironment sky mode -> "+mode.name());
+        invalidate();
     }
 
     private boolean worldFlag(String key){
@@ -922,20 +999,20 @@ public final class NoirEditorView extends android.view.View {
         String id=kind.name()+"_"+(state.scene.flatten().size()+1);
         NoirNode n=new NoirNode(id,id,kind);
         n.px=parent.px+1f;n.py=parent.py;n.pz=parent.pz;
-        parent.add(n);state.select(n);state.log("Created "+n.name);status="Created "+n.name;invalidate();
+        parent.add(n);state.select(n);renderer.applyScene(state.scene);state.log("Created "+n.name);status="Created "+n.name;invalidate();
     }
 
     private void duplicateSelected(){
         if(state.selected==null||state.selected==state.scene.root)return;
         tree.duplicate(state.selected);
         NoirNode n=state.selected.parent.children.get(state.selected.parent.children.size()-1);
-        n.px+=0.75f;n.pz+=0.75f;state.select(n);status="Duplicated "+n.name;invalidate();
+        n.px+=0.75f;n.pz+=0.75f;state.select(n);renderer.applyScene(state.scene);status="Duplicated "+n.name;invalidate();
     }
 
     private void deleteSelected(){
         if(state.selected==null||state.selected==state.scene.root)return;
         NoirNode parent=state.selected.parent;
-        parent.remove(state.selected);state.select(parent);status="Node deleted";invalidate();
+        parent.remove(state.selected);state.select(parent);renderer.applyScene(state.scene);status="Node deleted";invalidate();
     }
 
     private void editVector(String title,NoirNode n,int mode){
@@ -950,7 +1027,7 @@ public final class NoirEditorView extends android.view.View {
                 if(a.length==3)try{
                     float x=Float.parseFloat(a[0]),y=Float.parseFloat(a[1]),z=Float.parseFloat(a[2]);
                     if(mode==0){n.px=x;n.py=y;n.pz=z;}else if(mode==1){n.rx=x;n.ry=y;n.rz=z;}else{n.sx=x;n.sy=y;n.sz=z;}
-                    state.log(title+" updated for "+n.name);status=title+" updated";
+                    renderer.applyScene(state.scene);state.log(title+" updated for "+n.name);status=title+" updated";
                 }catch(Exception ex){Toast.makeText(getContext(),"Invalid vector",Toast.LENGTH_SHORT).show();}
                 invalidate();
             }).show();
@@ -1022,10 +1099,17 @@ public final class NoirEditorView extends android.view.View {
 
     private void checkCSharpSdk(){
         if(state.projectRoot==null){status="No project";return;}
-        File project=new File(state.projectRoot,"csharp/Noir.Game/Noir.Game.csproj");
-        status=project.isFile()?"C# .csproj detected":"C# project not created";
-        state.log(status);
-        Toast.makeText(getContext(),status,Toast.LENGTH_SHORT).show();
+        File project=new File(state.projectRoot,"csharp/Noir.GameTemplate/Noir.GameTemplate.csproj");
+        if(!project.isFile()){
+            status="C# project not created";
+            state.log(status);
+            Toast.makeText(getContext(),status,Toast.LENGTH_SHORT).show();
+            invalidate();return;
+        }
+        String report=NoirCSharpRuntime.toolchainInfo(getContext());
+        status=report.contains("Roslyn=OK")?"C# SDK + Roslyn ready":"C# SDK bundle incomplete";
+        state.log(report);
+        Toast.makeText(getContext(),status,Toast.LENGTH_LONG).show();
         invalidate();
     }
 
@@ -1133,23 +1217,53 @@ public final class NoirEditorView extends android.view.View {
     }
 
     private void toolButton(Canvas c,float x,float y,float w,float h,String s,boolean active){
-        round(c,active?ACTIVE:0xff202b3d,x,y,x+w,y+h,dp(6));
-        text(c,fitLabel(s,Math.max(8,w-dp(20)),dp(9)),x+dp(10),y+dp(25),dp(9),TEXT);
+        round(c,active?ACTIVE:PANEL2,x,y,x+w,y+h,dp(6));
+        stroke(c,BORDER,dp(1),x,y,x+w,y+h,dp(6));
+        drawToolGlyph(c,s,x+dp(14),y+h*0.5f,active?BG:TEXT);
+        text(c,fitLabel(s,Math.max(8,w-dp(30)),dp(8)),x+dp(25),y+dp(23),dp(8),TEXT);
     }
 
-    private String icon(NoirNode.Kind k){
-        switch(k){
-            case CAMERA3D:return "◉";
-            case LIGHT3D:return "✦";
-            case MESH3D:return "◇";
-            case CHARACTER3D:return "♙";
-            case PLAYER3D:return "◎";
-            case WORLD_ENVIRONMENT:return "☼";
-            case STATIC_BODY3D:return "▣";
-            case RIGID_BODY3D:return "◆";
-            case PARTICLES3D:return "✧";
-            default:return "□";
+    private void drawToolGlyph(Canvas c,String s,float cx,float cy,int color){
+        p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(1.6f));
+        if("SEL".equals(s)){Path q=new Path();q.moveTo(cx-dp(4),cy-dp(7));q.lineTo(cx+dp(5),cy);q.lineTo(cx+dp(1),cy+dp(2));q.lineTo(cx+dp(4),cy+dp(7));q.lineTo(cx+dp(1),cy+dp(8));q.lineTo(cx-dp(2),cy+dp(3));q.lineTo(cx-dp(5),cy+dp(5));q.close();c.drawPath(q,p);}
+        else if("MOVE".equals(s)){c.drawLine(cx-dp(7),cy,cx+dp(7),cy,p);c.drawLine(cx,cy-dp(7),cx,cy+dp(7),p);c.drawLine(cx+dp(7),cy,cx+dp(4),cy-dp(3),p);c.drawLine(cx+dp(7),cy,cx+dp(4),cy+dp(3),p);c.drawLine(cx-dp(7),cy,cx-dp(4),cy-dp(3),p);c.drawLine(cx-dp(7),cy,cx-dp(4),cy+dp(3),p);c.drawLine(cx,cy-dp(7),cx-dp(3),cy-dp(4),p);c.drawLine(cx,cy-dp(7),cx+dp(3),cy-dp(4),p);c.drawLine(cx,cy+dp(7),cx-dp(3),cy+dp(4),p);c.drawLine(cx,cy+dp(7),cx+dp(3),cy+dp(4),p);}
+        else if("ROT".equals(s)){c.drawArc(cx-dp(6),cy-dp(6),cx+dp(6),cy+dp(6),-50,285,false,p);Path q=new Path();q.moveTo(cx+dp(6),cy-dp(4));q.lineTo(cx+dp(7),cy+dp(1));q.lineTo(cx+dp(2),cy-dp(1));c.drawPath(q,p);}
+        else if("SCALE".equals(s)){c.drawRect(cx-dp(5),cy-dp(5),cx+dp(5),cy+dp(5),p);c.drawLine(cx-dp(8),cy-dp(8),cx-dp(5),cy-dp(8),p);c.drawLine(cx-dp(8),cy-dp(8),cx-dp(8),cy-dp(5),p);c.drawLine(cx+dp(8),cy+dp(8),cx+dp(5),cy+dp(8),p);c.drawLine(cx+dp(8),cy+dp(8),cx+dp(8),cy+dp(5),p);}
+        else if("PLAY".equals(s)){Path q=new Path();q.moveTo(cx-dp(3),cy-dp(6));q.lineTo(cx+dp(6),cy);q.lineTo(cx-dp(3),cy+dp(6));q.close();c.drawPath(q,p);}
+        else if("STOP".equals(s)){c.drawRect(cx-dp(5),cy-dp(5),cx+dp(5),cy+dp(5),p);}
+        else if("SAVE".equals(s)){c.drawRect(cx-dp(6),cy-dp(6),cx+dp(6),cy+dp(6),p);c.drawRect(cx-dp(3),cy-dp(5),cx+dp(3),cy-dp(1),p);c.drawLine(cx-dp(3),cy+dp(1),cx+dp(3),cy+dp(1),p);}
+        else if("BUILD".equals(s)){c.drawRect(cx-dp(6),cy-dp(5),cx+dp(6),cy+dp(5),p);c.drawLine(cx-dp(4),cy-dp(7),cx+dp(4),cy-dp(7),p);c.drawLine(cx-dp(3),cy-dp(8),cx+dp(3),cy-dp(8),p);}
+        else if("RESET CAM".equals(s)){c.drawArc(cx-dp(6),cy-dp(6),cx+dp(6),cy+dp(6),25,300,false,p);Path q=new Path();q.moveTo(cx+dp(6),cy-dp(5));q.lineTo(cx+dp(7),cy+dp(1));q.lineTo(cx+dp(2),cy- dp(1));c.drawPath(q,p);}
+        p.setStyle(Paint.Style.FILL);
+    }
+
+    private void drawNodeIcon(Canvas c,NoirNode.Kind k,float cx,float cy,float size,int color){
+        p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(1f,dp(1.3f)));
+        if(k==NoirNode.Kind.CAMERA3D){
+            c.drawCircle(cx,cy,dp(4),p);c.drawLine(cx-dp(7),cy,cx-dp(4),cy,p);c.drawLine(cx+dp(4),cy,cx+dp(7),cy,p);
+        }else if(k==NoirNode.Kind.LIGHT3D){
+            for(int i=0;i<8;i++){double a=Math.PI*i/4;c.drawLine(cx+(float)Math.cos(a)*dp(3),cy+(float)Math.sin(a)*dp(3),cx+(float)Math.cos(a)*dp(7),cy+(float)Math.sin(a)*dp(7),p);}
+            c.drawCircle(cx,cy,dp(3),p);
+        }else if(k==NoirNode.Kind.MESH3D||k==NoirNode.Kind.TERRAIN3D||k==NoirNode.Kind.STATIC_BODY3D){
+            c.drawRect(cx-dp(5),cy-dp(5),cx+dp(5),cy+dp(5),p);
+            c.drawLine(cx-dp(5),cy,cx,cy-dp(5),p);c.drawLine(cx,cy-dp(5),cx+dp(5),cy,p);
+        }else if(k==NoirNode.Kind.FOLIAGE3D){
+            Path q=new Path();q.moveTo(cx,cy-dp(7));q.lineTo(cx-dp(6),cy+dp(1));q.lineTo(cx+dp(6),cy+dp(1));q.close();c.drawPath(q,p);
+            c.drawLine(cx,cy+dp(1),cx,cy+dp(7),p);
+        }else if(k==NoirNode.Kind.WORLD_ENVIRONMENT||k==NoirNode.Kind.SKY3D){
+            c.drawCircle(cx,cy,dp(6),p);c.drawLine(cx-dp(7),cy,cx+dp(7),cy,p);c.drawLine(cx,cy-dp(7),cx,cy+dp(7),p);
+        }else if(k==NoirNode.Kind.PLAYER3D||k==NoirNode.Kind.CHARACTER3D){
+            c.drawCircle(cx,cy-dp(3),dp(3),p);c.drawRoundRect(cx-dp(5),cy+0,cx+dp(5),cy+dp(7),dp(2),dp(2),p);
+        }else{
+            c.drawRect(cx-dp(5),cy-dp(5),cx+dp(5),cy+dp(5),p);
         }
+        p.setStyle(Paint.Style.FILL);
+    }
+    private void drawFileIcon(Canvas c,float cx,float cy,float size,boolean folder,int color){
+        p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(Math.max(1f,dp(1.3f)));
+        if(folder){Path q=new Path();q.moveTo(cx-dp(6),cy-dp(4));q.lineTo(cx-dp(1),cy-dp(4));q.lineTo(cx+dp(1),cy-dp(2));q.lineTo(cx+dp(6),cy-dp(2));q.lineTo(cx+dp(6),cy+dp(5));q.lineTo(cx-dp(6),cy+dp(5));q.close();c.drawPath(q,p);}
+        else c.drawRect(cx-dp(5),cy-dp(6),cx+dp(5),cy+dp(6),p);
+        p.setStyle(Paint.Style.FILL);
     }
 
     private float distance(MotionEvent e){
