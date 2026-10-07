@@ -6,8 +6,57 @@ if (noirKeystore.exists()) {
     noirKeystore.withInputStream { noirProps.load(it) }
 }
 
+def noirCSharpBundle = rootProject.file("build/csharp/sdk")
+def noirCSharpGeneratedAssets = file("$buildDir/generated/noir-csharp-assets")
+def noirVulkanGeneratedAssets = file("$buildDir/generated/noir-vulkan-assets")
+
+ tasks.register("prepareNoirVulkanShaders") {
+    inputs.dir(file("src/main/cpp/shaders"))
+    outputs.dir(noirVulkanGeneratedAssets)
+    doLast {
+        String compiler = System.getenv("GLSLANG_VALIDATOR") ?: "glslangValidator"
+        delete(noirVulkanGeneratedAssets)
+        File out = new File(noirVulkanGeneratedAssets, "vulkan")
+        out.mkdirs()
+        ["noir_forward.vert", "noir_forward.frag"].each { String shader ->
+            exec {
+                ignoreExitValue = false
+                commandLine compiler, "-V", file("src/main/cpp/shaders/$shader").absolutePath,
+                        "-o", new File(out, shader + ".spv").absolutePath
+            }
+        }
+    }
+}
+
+tasks.register("prepareNoirCSharpAssets") {
+    inputs.dir(noirCSharpBundle)
+    outputs.dir(noirCSharpGeneratedAssets)
+    doLast {
+        if (!noirCSharpBundle.isDirectory()) {
+            throw new GradleException("Missing C# SDK bundle: $noirCSharpBundle. Build the Noir C# SDK before assembling the APK.")
+        }
+        def payload = fileTree(noirCSharpBundle) { include("**/*.dll", "**/*.json", "**/*.xml") }.files
+        if (payload.isEmpty()) {
+            throw new GradleException("C# SDK bundle contains no DLLs: $noirCSharpBundle")
+        }
+        delete(noirCSharpGeneratedAssets)
+        copy {
+            from(noirCSharpBundle)
+            into(new File(noirCSharpGeneratedAssets, "csharp/sdk"))
+            include("**/*.dll", "**/*.json", "**/*.xml")
+        }
+    }
+}
+
 android {
     namespace 'com.noir.game.engine'
+
+    sourceSets {
+        main {
+            assets.srcDir(noirCSharpGeneratedAssets)
+            assets.srcDir(noirVulkanGeneratedAssets)
+        }
+    }
     compileSdk 35
     ndkVersion "28.1.13356709"
 
@@ -20,8 +69,8 @@ android {
         applicationId 'com.noir.game.engine'
         minSdk 26
         targetSdk 35
-        versionCode 100
-        versionName '1.0.0'
+        versionCode 150
+        versionName '1.5.0'
     }
 
     externalNativeBuild {
@@ -68,6 +117,8 @@ android {
         }
     }
 }
+
+tasks.named("preBuild").configure { dependsOn("prepareNoirCSharpAssets", "prepareNoirVulkanShaders") }
 
 dependencies {
     implementation project(':engine')

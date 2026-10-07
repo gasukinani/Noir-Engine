@@ -71,8 +71,32 @@ public sealed class WorldEnvironment : Node3D
     public Environment Environment { get; set; } = new();
 }
 
+public sealed class PhysicalSkyMaterial : NoirResource
+{
+    public float SunEnergyMultiplier { get; set; } = 1f;
+    public float RayleighStrength { get; set; } = 1f;
+    public float MieStrength { get; set; } = 1f;
+    public float Turbidity { get; set; } = 2.5f;
+}
+
+public sealed class ProceduralSkyMaterial : NoirResource
+{
+    public Color TopColor { get; set; } = new(0.08f,0.16f,0.32f);
+    public Color HorizonColor { get; set; } = new(0.55f,0.65f,0.82f);
+    public float CloudDensity { get; set; } = 0.35f;
+    public float CloudSpeed { get; set; } = 0.02f;
+}
+
+public sealed class ShaderSkyMaterial : NoirResource
+{
+    public string ShaderPath { get; set; } = "";
+    public Dictionary<string,object?> Parameters { get; } = new(StringComparer.Ordinal);
+    public void SetParameter(string name,object? value)=>Parameters[name]=value;
+}
+
 public sealed class Environment : Object
 {
+    public NoirResource? Sky { get; set; }
     public Color BackgroundColor { get; set; } = new(0.05f,0.08f,0.14f);
     public Color AmbientColor { get; set; } = new(0.25f,0.3f,0.4f);
     public float Exposure { get; set; } = 1f;

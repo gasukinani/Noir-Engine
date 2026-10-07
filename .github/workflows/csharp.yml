@@ -5,7 +5,7 @@ name: Noir C# Mobile Scripting
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, noir-editor-upgrade, noir-editor-v1.2-world-csharp-vulkan, noir-world-environment-quality, noir-v1.3-world-vulkan-csharp, noir-v1.4-crash-world, noir-v1.5-real-world-render-fix]
 
 permissions:
   contents: read
@@ -40,11 +40,17 @@ jobs:
       - name: Verify Android workload
         run: dotnet workload list
 
+      - name: Build authoritative Noir API
+        run: dotnet build csharp/Noir.csproj --configuration Release
+
       - name: Restore compiler host
         run: dotnet restore csharp/Noir.CSharp.Compiler/Noir.CSharp.Compiler.csproj
 
       - name: Build Roslyn compiler host
         run: dotnet build csharp/Noir.CSharp.Compiler/Noir.CSharp.Compiler.csproj --configuration Release --no-restore
+
+      - name: Build authoritative Noir API
+        run: dotnet build csharp/Noir.csproj --configuration Release
 
       - name: Build mobile C# SDK
         run: dotnet build csharp/Noir.Mobile.Scripting/Noir.Mobile.Scripting.csproj -f net10.0-android36.1 --configuration Release
@@ -65,8 +71,23 @@ jobs:
           dotnet run --project csharp/Noir.CSharp.Compiler/Noir.CSharp.Compiler.csproj --configuration Release -- build csharp/Noir.GameTemplate build/csharp/Noir.GameTemplate.dll
           test -s build/csharp/Noir.GameTemplate.dll
 
+      - name: Assemble complete C# SDK dependency bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/csharp/sdk
+          for dir in csharp/bin/Release/net10.0 csharp/Noir.CSharp.Compiler/bin/Release/net10.0 csharp/Noir.Mobile.Scripting/bin/Release/net10.0 csharp/Noir.GameTemplate/bin/Release/net10.0-android36.1 csharp/Noir.Editor/bin/Release/net10.0; do
+            [ -d "$dir" ] || continue
+            find "$dir" -maxdepth 1 -type f \( -name '*.dll' -o -name '*.json' -o -name '*.xml' \) -exec cp -f {} build/csharp/sdk/ \;
+          done
+          cp build/csharp/Noir.Game.dll build/csharp/sdk/Noir.Game.Sample.dll
+          cp build/csharp/Noir.GameTemplate.dll build/csharp/sdk/Noir.GameTemplate.Sample.dll
+          test -s build/csharp/sdk/Microsoft.CodeAnalysis.dll
+          test -s build/csharp/sdk/Microsoft.CodeAnalysis.CSharp.dll
+          test -s build/csharp/sdk/Microsoft.CodeAnalysis.CSharp.Workspaces.dll
+
       - name: Upload generated C# DLLs
         uses: actions/upload-artifact@v4
         with:
-          name: noir-csharp-dlls
-          path: build/csharp/*.dll
+          name: noir-csharp-sdk-full
+          path: build/csharp/sdk/*

@@ -37,6 +37,21 @@ public final class GameFileParser {
                 else if(key.equals("position")){float[] v=vec3(val); if(v==null) r.diagnostics.add(new Diagnostic(ln,"ERROR","position expects three numbers")); else {target.px=v[0];target.py=v[1];target.pz=v[2];}}
                 else if(key.equals("rotation")){float[] v=vec3(val); if(v==null) r.diagnostics.add(new Diagnostic(ln,"ERROR","rotation expects three numbers")); else {target.rx=v[0];target.ry=v[1];target.rz=v[2];}}
                 else if(key.equals("scale")){float[] v=vec3(val); if(v==null) r.diagnostics.add(new Diagnostic(ln,"ERROR","scale expects three numbers")); else {target.sx=v[0];target.sy=v[1];target.sz=v[2];}}
+                else if(key.equals("size") && (target.kind==NoirNode.Kind.TERRAIN3D || target.kind==NoirNode.Kind.WATER3D)){
+                    target.properties.put(key,val);
+                    float[] v=vec3(val);
+                    if(v!=null){
+                        if(target.kind==NoirNode.Kind.TERRAIN3D){
+                            target.sx=Math.max(1f,Math.abs(v[0]));
+                            target.sy=Math.max(0.1f,Math.abs(v[1]));
+                            target.sz=Math.max(1f,Math.abs(v[2]));
+                        }else{
+                            target.sx=Math.max(0.5f,Math.abs(v[0]));
+                            target.sy=Math.max(0.02f,Math.abs(v[1]));
+                            target.sz=Math.max(0.5f,Math.abs(v[2]));
+                        }
+                    }
+                }
                 else target.properties.put(key,val);
                 continue;
             }

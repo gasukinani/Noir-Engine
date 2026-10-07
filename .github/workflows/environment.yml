@@ -1,0 +1,112 @@
+name: Noir Manual 3D Environment Downloader
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: "GitHub repository containing the environment pack"
+        required: true
+        default: "Hidencod/tge-assets"
+      source_path:
+        description: "Repository folder containing the environment assets"
+        required: true
+        default: "packs/nature-kit"
+      pack_name:
+        description: "Folder name used inside the Noir environment bundle"
+        required: true
+        default: "nature-kit"
+      branch:
+        description: "Git branch/tag/commit to download"
+        required: true
+        default: "main"
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    name: Download 3D Environment Pack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y git unzip zip
+
+      - name: Clone selected GitHub source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/source
+          git clone --depth 1 --branch "${{ inputs.branch }}"             "https://github.com/${{ inputs.source_repo }}.git" build/source/repo
+
+      - name: Extract supported 3D environment files
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="build/source/repo/${{ inputs.source_path }}"
+          OUT="build/noir-environment/${{ inputs.pack_name }}"
+          test -d "$SRC"
+          mkdir -p "$OUT"
+          (
+            cd "$SRC"
+            find . -type f \(
+              -iname '*.glb' -o -iname '*.gltf' -o -iname '*.bin' -o               -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o               -iname '*.webp' -o -iname '*.ktx2' -o -iname '*.hdr'
+            \) -exec cp --parents {} "$OLDPWD/$OUT" \;
+          )
+          find "$OUT" -type f -printf '%P\n' | sort > build/noir-environment/files.txt
+          test -s build/noir-environment/files.txt
+
+      - name: Create Noir environment manifest and install instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="build/noir-environment/${{ inputs.pack_name }}"
+          cat > "$OUT/noir_environment_manifest.json" <<EOF
+          {
+            "engine": "Noir",
+            "pack": "${{ inputs.pack_name }}",
+            "source_repository": "https://github.com/${{ inputs.source_repo }}",
+            "source_path": "${{ inputs.source_path }}",
+            "branch": "${{ inputs.branch }}",
+            "generated_at": "${{ github.run_id }}",
+            "runtime_directory": "Android/data/com.noir.game.engine/files/noir-environments/${{ inputs.pack_name }}",
+            "supported_extensions": [".glb",".gltf",".bin",".png",".jpg",".jpeg",".webp",".ktx2",".hdr"]
+          }
+          EOF
+          cat > "$OUT/INSTALL_TO_NOIR.txt" <<EOF
+          NOIR ENVIRONMENT PACK
+
+          Copy the extracted "${{ inputs.pack_name }}" folder to:
+          /storage/emulated/0/Android/data/com.noir.game.engine/files/noir-environments/
+
+          Result:
+          /storage/emulated/0/Android/data/com.noir.game.engine/files/noir-environments/${{ inputs.pack_name }}/
+
+          The pack is data only. Noir's native renderer must import a GLB/glTF mesh before
+          it can render the model as geometry. Texture files are kept beside their models.
+          Check the source repository's license/readme before redistributing third-party assets.
+          EOF
+
+      - name: Print downloaded environment inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== Noir Environment Pack ==="
+          cat build/noir-environment/files.txt
+          echo "=== SHA256 ==="
+          find "build/noir-environment/${{ inputs.pack_name }}" -type f -print0 |
+            sort -z | xargs -0 sha256sum > build/noir-environment/SHA256SUMS.txt
+          cat build/noir-environment/SHA256SUMS.txt
+
+      - name: Archive Noir environment pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd build
+          zip -r "../noir-environment-${{ inputs.pack_name }}.zip" noir-environment >/dev/null
+
+      - name: Upload environment bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: noir-environment-${{ inputs.pack_name }}
+          path: noir-environment-${{ inputs.pack_name }}.zip
+          if-no-files-found: error

@@ -1,40 +1,182 @@
 scene LoftArena {
+    renderer = noir_gfx
     environment = procedural_pbr
-    sky = studio_blue
-    exposure = 1.0
-    fog_density = 0.012
+    sky = noir_deep_gradient
+    exposure = 1.10
+    fog_density = 0.010
+    render_scale = 1.0
+    shadows = pcf_soft
+    color_space = srgb
+    tone_mapping = aces
 
     node WorldEnvironment {
         type = WORLD_ENVIRONMENT
+        sky = procedural
+        clouds = procedural
+        fog = volumetric
+        exposure = 1.10
     }
+
     node MainLight {
         type = LIGHT3D
-        position = (0, 8, 2)
-        color = (1.0, 0.95, 0.85)
-        intensity = 2.8
+        position = (0, 12, 6)
+        rotation = (-42, -28, 0)
+        color = (1.0, 0.86, 0.68)
+        intensity = 3.2
         shadows = true
+        shadow_quality = high
     }
-    node Floor {
+
+    node ProceduralTerrain {
+        type = TERRAIN3D
+        size = (44, 4, 44)
+        scale = (44, 4, 44)
+        resolution = 48
+        material = materials/terrain_pbr.game
+        collision = true
+    }
+
+    node CentralPlatform {
         type = MESH3D
-        position = (0, 0, 0)
-        mesh = models/LoftArena.glb
-        material = materials/loft_pbr.game
+        position = (0, 1.15, 0)
+        scale = (1.7, 1.15, 1.7)
+        primitive = box
+        material = materials/metal_pbr.game
     }
+
+    node Water_Main {
+        type = WATER3D
+        position = (0, -0.20, 6)
+        size = (11, 0.06, 9)
+        material = NoirWaterPBR
+        transparent = true
+    }
+
+    node Rock_1 {
+        type = ROCK3D
+        position = (-8, 0.55, -5)
+        scale = (1.7, 0.8, 1.4)
+        material = RockPBR
+    }
+    node Rock_2 {
+        type = ROCK3D
+        position = (-4, 0.45, -7)
+        scale = (1.1, 0.7, 1.0)
+        material = RockPBR
+    }
+    node Rock_3 {
+        type = ROCK3D
+        position = (7, 0.75, -6)
+        scale = (1.8, 1.0, 1.3)
+        material = RockPBR
+    }
+    node Rock_4 {
+        type = ROCK3D
+        position = (10, 0.42, 1)
+        scale = (1.0, 0.6, 1.2)
+        material = RockPBR
+    }
+    node Rock_5 {
+        type = ROCK3D
+        position = (-9, 0.62, 7)
+        scale = (1.5, 0.9, 1.5)
+        material = RockPBR
+    }
+    node Rock_6 {
+        type = ROCK3D
+        position = (5, 0.55, 8)
+        scale = (1.4, 0.8, 1.1)
+        material = RockPBR
+    }
+
+    node Tree_1 {
+        type = FOLIAGE3D
+        position = (-11, 2.7, -10)
+        scale = (1.4, 2.52, 1.4)
+        material = FoliagePBR
+    }
+    node Tree_2 {
+        type = FOLIAGE3D
+        position = (-5, 3.0, -11)
+        scale = (1.25, 2.25, 1.25)
+        material = FoliagePBR
+    }
+    node Tree_3 {
+        type = FOLIAGE3D
+        position = (2, 3.4, -10)
+        scale = (1.5, 2.7, 1.5)
+        material = FoliagePBR
+    }
+    node Tree_4 {
+        type = FOLIAGE3D
+        position = (10, 3.0, -10)
+        scale = (1.3, 2.34, 1.3)
+        material = FoliagePBR
+    }
+    node Tree_5 {
+        type = FOLIAGE3D
+        position = (13, 2.6, -2)
+        scale = (1.15, 2.07, 1.15)
+        material = FoliagePBR
+    }
+    node Tree_6 {
+        type = FOLIAGE3D
+        position = (-12, 2.9, 2)
+        scale = (1.3, 2.34, 1.3)
+        material = FoliagePBR
+    }
+    node Tree_7 {
+        type = FOLIAGE3D
+        position = (-9, 3.1, 10)
+        scale = (1.35, 2.43, 1.35)
+        material = FoliagePBR
+    }
+    node Tree_8 {
+        type = FOLIAGE3D
+        position = (2, 3.2, 11)
+        scale = (1.4, 2.52, 1.4)
+        material = FoliagePBR
+    }
+    node Tree_9 {
+        type = FOLIAGE3D
+        position = (11, 2.9, 8)
+        scale = (1.2, 2.16, 1.2)
+        material = FoliagePBR
+    }
+
     node Player {
         type = CHARACTER3D
-        position = (0, 1.7, 8)
+        position = (0, 2.2, 8)
         script = scripts/player.game
+        speed = 5.0
+        jump = 4.5
         node Camera3D {
             type = CAMERA3D
-            fov = 70
-        }
-        node Weapon {
-            type = MESH3D
-            mesh = models/weapon.glb
+            fov = 64
+            near = 0.05
+            far = 180
+            current = true
         }
     }
+
+    node DirectionalSun {
+        type = LIGHT3D
+        rotation = (-52, 24, 0)
+        color = (1.0, 0.80, 0.58)
+        intensity = 1.4
+        shadows = true
+    }
+
     node ReflectionProbe {
-        type = NODE3D
-        size = (12, 5, 12)
+        type = REFLECTION_PROBE3D
+        size = (24, 8, 24)
+        intensity = 0.65
+    }
+
+    node WorldGrid {
+        type = GRID3D
+        size = (44, 44)
+        spacing = 1.0
+        editor_only = true
     }
 }

@@ -5,6 +5,9 @@ public final class NoirNative {
     static { try { System.loadLibrary("noir3d"); loaded=true; } catch (UnsatisfiedLinkError ignored) { loaded=false; } }
     private NoirNative() {}
     public static boolean isLoaded(){return loaded;}
+    public static native void nativeSetGraphicsAPI(int index);
+    public static native int nativeGetGraphicsAPI();
+    public static native boolean nativeApplyPendingGraphicsAPI();
     public static native String engineVersion();
     public static native long engineBuildId();
     public static native void stepRigidBody(float[] state,float dt,float gravity);
@@ -26,12 +29,34 @@ public final class NoirNative {
     public static native boolean vulkanSupported();
     public static native String vulkanStatus();
     public static native String glesBackendInfo();
+    public static native String graphicsLastError();
+    public static native boolean graphicsSafeMode();
+    public static native boolean graphicsInitialize();
+    public static native void graphicsResize(int width,int height);
+    public static native String csharpToolchainScan(String directory);
+    public static native void graphicsSetScene(float[] snapshot);
+    public static native void graphicsSetEnvironment(int skyMode,float exposure,float skyBrightness,float fogDensity,float sunX,float sunY,float sunZ);
+    public static native void graphicsSetQuality(int qualityTier);
+    public static native void graphicsFrame(float yaw,float pitch,float distance,float targetX,float targetY,float targetZ,boolean editorMode);
+    public static native void graphicsFrameRuntime(float x,float y,float z,float yaw,float pitch,boolean editorMode);
+    public static native float graphicsFrameTimeMs();
+    public static native void graphicsShutdown();
+    public static native String themeColor(String key);
+    public static native float[] themeMetrics();
     public static native boolean vulkanInitialize();
     public static native void vulkanShutdown();
     public static native boolean vulkanDeviceReady();
     public static native String vulkanDeviceInfo();
+    public static native String vulkanFeatureInfo();
     public static native float[] editorLayout(float width,float height,float density);
-    public static native boolean vulkanAttachSurface(android.view.Surface surface);
+    public static native boolean vulkanAttachSurface(android.view.Surface surface, android.content.res.AssetManager assets);
+    public static native void vulkanResize(int width,int height);
+    public static native void vulkanSetScene(float[] snapshot);
+    public static native void vulkanSetCamera(float yaw,float pitch,float distance,float targetX,float targetY,float targetZ);
+    public static native void vulkanSetRuntimeCamera(float x,float y,float z,float yaw,float pitch);
+
+    public static native void vulkanSetEnvironment(int skyMode,float exposure,float skyBrightness,float fogDensity,float sunX,float sunY,float sunZ);
+    public static native void vulkanSetQuality(int qualityTier);
     public static native boolean vulkanDrawFrame();
     public static native void vulkanDetachSurface();
 }

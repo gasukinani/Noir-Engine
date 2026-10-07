@@ -79,17 +79,28 @@ static int Main(string[] args)
 
     if(errors.Any(d=>d.Severity==DiagnosticSeverity.Error)) return 1;
 
-    if(mode=="compile")
+    if(mode=="compile" || mode=="build")
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(output!))!);
-        using var stream=File.Create(output!);
+        if(string.IsNullOrWhiteSpace(output))
+        {
+            Console.Error.WriteLine("No output DLL was supplied.");
+            return 2;
+        }
+
+        var outputPath=Path.GetFullPath(output);
+        var parent=Path.GetDirectoryName(outputPath);
+        if(!string.IsNullOrWhiteSpace(parent)) Directory.CreateDirectory(parent);
+
+        using var stream=File.Create(outputPath);
         var emit=compilation.Emit(stream);
         if(!emit.Success)
         {
-            foreach(var d in emit.Diagnostics) Console.WriteLine($"{d.Severity}: {d.Id}: {d.GetMessage()}");
+            foreach(var d in emit.Diagnostics.Where(d=>d.Severity is DiagnosticSeverity.Error or DiagnosticSeverity.Warning))
+                Console.WriteLine($"{d.Severity}: {d.Id}: {d.GetMessage()}");
             return 1;
         }
-        Console.WriteLine("Compiled "+output);
+
+        Console.WriteLine("Emitted "+outputPath);
     }
     return 0;
 }

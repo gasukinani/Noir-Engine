@@ -1,0 +1,15 @@
+theme NoirDark {
+    background = #080D16
+    surface = #111A28
+    surface2 = #172235
+    border = #293A55
+    accent = #5C8DFF
+    accent2 = #7A5CFF
+    text = #EDF3FF
+    muted = #8292AD
+    good = #63E6A3
+    warn = #FFC85A
+    bad = #FF647D
+    corner = 9
+    spacing = 6
+}

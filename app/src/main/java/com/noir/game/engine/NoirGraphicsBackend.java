@@ -8,17 +8,37 @@ public final class NoirGraphicsBackend {
 
     private static final String PREFS="noir_graphics";
     private static final String KEY="backend";
+    private static final String KEY_VULKAN_BLOCKED="vulkan_blocked";
 
     private NoirGraphicsBackend(){}
 
     public static Type load(Context context){
-        String value=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).getString(KEY,"GLES");
-        try{return Type.valueOf(value);}catch(Exception ignored){return Type.GLES;}
+        SharedPreferences p=context.getSharedPreferences(PREFS,Context.MODE_PRIVATE);
+        String value=p.getString(KEY,"GLES");
+        try{
+            Type t=Type.valueOf(value);
+            if(t==Type.VULKAN&&p.getBoolean(KEY_VULKAN_BLOCKED,false))return Type.GLES;
+            return t;
+        }catch(Exception ignored){return Type.GLES;}
     }
 
     public static void save(Context context,Type type){
+        Type t=type==null?Type.GLES:type;
         context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit()
-                .putString(KEY,(type==null?Type.GLES:type).name()).apply();
+                .putString(KEY,t.name())
+                .putBoolean(KEY_VULKAN_BLOCKED,false)
+                .apply();
+    }
+
+    public static void markVulkanStarted(Context context){
+        context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit()
+                .putBoolean(KEY_VULKAN_BLOCKED,true).apply();
+    }
+
+    public static void confirmVulkan(Context context){
+        context.getSharedPreferences(PREFS,Context.MODE_PRIVATE).edit()
+                .putString(KEY,Type.VULKAN.name())
+                .putBoolean(KEY_VULKAN_BLOCKED,false).apply();
     }
 
     public static boolean vulkanAvailable(){
@@ -43,5 +63,9 @@ public final class NoirGraphicsBackend {
 
     public static String vulkanDeviceInfo(){
         try{return NoirNative.vulkanDeviceInfo();}catch(Throwable ignored){return "Vulkan device info unavailable";}
+    }
+
+    public static String vulkanFeatureInfo(){
+        try{return NoirNative.vulkanFeatureInfo();}catch(Throwable ignored){return "Vulkan feature probe unavailable";}
     }
 }
